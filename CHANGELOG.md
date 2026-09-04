@@ -46,6 +46,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+### [v0.1.1] - 2026-09-04 — GitHub Pages Deployment & PWA Configuration
+- ✨ **Added**: Automated GitHub Actions deployment workflow (`.github/workflows/deploy.yml`) matching the Shallot suite.
+- 🔄 **Changed**: Configured `base: './'` in `vite.config.ts` and relative asset links in `index.html` and `manifest.json` for seamless GitHub Pages hosting.
+- 🚀 **Deployed**: Live web app published at `https://strothman.github.io/shallot-declutter/`.
+- 📱 **Mobile**: Enabled full PWA standalone "Add to Home Screen" support with secure HTTPS camera access for iOS.
+
+---
+
 ### [v0.1.0] - 2026-09-04 — Initial Release (Working MVP)
 
 This is the initial working release of Shallot Declutter, creating a complete end-to-end pipeline from physical paper scanning to AI document analysis, PDF generation, and Google Drive organization.
