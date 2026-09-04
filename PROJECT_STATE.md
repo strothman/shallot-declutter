@@ -25,6 +25,7 @@ If you are new to this project or returning after some time, this document is yo
 | **Google Drive OAuth & Upload** | 🟢 Fully Working | Client-side Google Identity Services (GIS) OAuth token flow + nested folder creation and multipart upload. |
 | **Local Vault History** | 🟢 Fully Working | Saves all processed documents to browser LocalStorage with direct links to Google Drive files. |
 | **Settings Management** | 🟢 Fully Working | Easily configure API keys, models, root Drive folder, and auto-file options. |
+| **GitHub Pages & PWA** | 🟢 Configured | Automated build & deploy workflow via GitHub Actions; relative base paths; installable on iOS/Android. |
 
 ---
 

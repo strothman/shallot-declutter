@@ -1,6 +1,26 @@
+<div align="center">
+
 # 🧅 Shallot Declutter — AI Document Organizer
 
-> **Turn messy physical paperwork into neatly organized, searchable digital files in seconds.**
+**Turn messy physical paperwork into neatly organized, searchable digital files in seconds.**
+
+[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Platform](https://img.shields.io/badge/Platform-iPhone%20%7C%20Android%20%7C%20Web-orange.svg?style=flat-square)](#-iphone--mobile-app-guide)
+[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg?style=flat-square)](LICENSE)
+[![PWA Ready](https://img.shields.io/badge/PWA-Installable-success.svg?style=flat-square)](public/manifest.json)
+[![Deploy](https://img.shields.io/badge/Deploy-GitHub%20Pages-teal.svg?style=flat-square)](.github/workflows/deploy.yml)
+
+<p align="center">
+  <a href="https://strothman.github.io/shallot-declutter/"><strong>📱 Open the Live Web App</strong></a> •
+  <a href="#-what-does-shallot-declutter-do">What is Declutter?</a> •
+  <a href="#-iphone--mobile-app-guide">iPhone Setup</a> •
+  <a href="#-key-features-explained-in-plain-english">Features</a> •
+  <a href="#-quick-start-guide-for-beginners">Quick Start</a>
+</p>
+
+</div>
+
+---
 
 Welcome to **Shallot Declutter**! If you have ever felt overwhelmed by stacks of medical bills, Explanation of Benefits (EOB) forms, tax notices, receipts, or insurance statements, this app was made for you.
 
@@ -33,6 +53,25 @@ Imagine you just received a complicated 4-page medical bill or dental insurance 
 - **Private & Client-Side**: Your documents and API keys never touch any middleman servers—everything runs right inside your web browser.
 - **Local Vault Ledger**: Keep track of everything you've scanned, with quick links to open the files in Google Drive.
 - **Mobile Friendly (PWA Ready)**: Designed with large tap targets and bottom navigation, making it feel like a native app on your phone.
+
+---
+
+## 📱 iPhone & Mobile App Guide
+
+Shallot Declutter is built as a **Progressive Web App (PWA)**, which means you can install it onto your iPhone without needing the Apple App Store!
+
+### How to Install on Your iPhone:
+1. Open **Safari** on your iPhone.
+2. Navigate to your live app link:  
+   👉 **`https://strothman.github.io/shallot-declutter/`**
+3. Tap the **Share** button (the square icon with an arrow pointing up at the bottom of Safari).
+4. Scroll down and tap **"Add to Home Screen"** 📲.
+5. Tap **Add** in the top-right corner.
+
+### Why Running on iPhone via GitHub Pages Works Great:
+- 🔒 **Camera Access Enabled (HTTPS)**: Apple Safari strictly requires a secure `https://` connection to access your iPhone camera. Because GitHub Pages provides HTTPS, camera scanning works directly without any error!
+- 🗂️ **Full-Screen App Feel**: When launched from your home screen, the Safari address bar disappears, giving you a full-screen experience.
+- 💾 **Local Settings**: Your Gemini API Key and settings are securely remembered on your phone's browser storage.
 
 ---
 
