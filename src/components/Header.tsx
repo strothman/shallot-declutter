@@ -142,7 +142,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div
-            title={isGeminiConnected ? 'Gemini 3.1 Flash-Lite Active' : 'API Key Missing'}
+            title={isGeminiConnected ? `${settings.geminiModel || 'Gemini 3.5'} Active` : 'API Key Missing'}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -157,7 +157,7 @@ export const Header: React.FC<HeaderProps> = ({
             }}
           >
             <Sparkles size={13} />
-            <span>{isGeminiConnected ? 'Gemini 3.1' : 'No API Key'}</span>
+            <span>{isGeminiConnected ? (settings.geminiModel?.includes('3.7') ? 'Gemini 3.7' : 'Gemini 3.5') : 'No API Key'}</span>
           </div>
 
           <div

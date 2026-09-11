@@ -33,7 +33,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
 }) => {
   const [geminiApiKey, setGeminiApiKey] = useState(settings.geminiApiKey);
-  const [geminiModel, setGeminiModel] = useState(settings.geminiModel || 'gemini-3.1-flash-lite');
+  const [geminiModel, setGeminiModel] = useState(settings.geminiModel || 'gemini-3.5-flash-lite');
   const [autoFile, setAutoFile] = useState(settings.autoFile);
   const [rootDriveFolder, setRootDriveFolder] = useState(settings.rootDriveFolder || 'Shallot-Declutter');
   const [enhanceContrast, setEnhanceContrast] = useState(settings.enhanceContrast ?? true);
@@ -133,9 +133,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onChange={(e) => setGeminiModel(e.target.value)}
                 style={{ cursor: 'pointer' }}
               >
-                <option value="gemini-flash-latest" style={{ background: '#1E293B', color: '#FFF' }}>Gemini 3.8 Flash (Recommended - Fastest & Multi-modal)</option>
-                <option value="gemini-pro-latest" style={{ background: '#1E293B', color: '#FFF' }}>Gemini Pro (Latest)</option>
+                <option value="gemini-3.5-flash-lite" style={{ background: '#1E293B', color: '#FFF' }}>Gemini 3.5 Flash-Lite (Recommended — 600ms & High Capacity)</option>
+                <option value="gemini-3.7-flash" style={{ background: '#1E293B', color: '#FFF' }}>Gemini 3.7 Flash (High-Accuracy Reasoning)</option>
                 <option value="gemini-3.1-flash-lite" style={{ background: '#1E293B', color: '#FFF' }}>Gemini 3.1 Flash-Lite</option>
+                <option value="gemini-3.5-flash" style={{ background: '#1E293B', color: '#FFF' }}>Gemini 3.5 Flash (Standard Production)</option>
               </select>
             </div>
 

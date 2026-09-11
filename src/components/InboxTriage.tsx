@@ -364,7 +364,7 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
       // 3. Analyze with Gemini (using up to 3 key pages for multi-page document context)
       setTriageProgress({
         isOpen: true,
-        step: `Extracting personal data points with Gemini 3.1 AI...`,
+        step: `Extracting personal data points with Gemini 3.5 AI...`,
         percent: 80,
       });
 
@@ -372,7 +372,14 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
         optimizedPages,
         settings.geminiApiKey,
         settings.geminiModel,
-        'Shallot-Declutter'
+        'Shallot-Declutter',
+        (step, percent) => {
+          setTriageProgress({
+            isOpen: true,
+            step,
+            percent,
+          });
+        }
       );
 
       setTriageProgress({

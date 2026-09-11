@@ -5,7 +5,7 @@ const VAULT_KEY = 'shallot_declutter_vault_v1';
 
 const DEFAULT_SETTINGS: AppSettings = {
   geminiApiKey: (import.meta.env.VITE_GEMINI_API_KEY as string) || '',
-  geminiModel: 'gemini-3.1-flash-lite',
+  geminiModel: 'gemini-3.5-flash-lite',
   googleClientId: '',
   autoFile: false,
   rootDriveFolder: 'G:\\My Drive\\IDE\\Declutter',
@@ -29,8 +29,8 @@ export function loadSettings(): AppSettings {
       return { ...DEFAULT_SETTINGS, geminiApiKey: envKey };
     }
     const parsed = JSON.parse(raw);
-    const model = (!parsed.geminiModel || parsed.geminiModel === 'gemini-2.5-flash')
-      ? 'gemini-3.1-flash-lite'
+    const model = (!parsed.geminiModel || parsed.geminiModel === 'gemini-2.5-flash' || parsed.geminiModel === 'gemini-3.1-flash-lite')
+      ? 'gemini-3.5-flash-lite'
       : parsed.geminiModel;
 
     const rootFolder = (!parsed.rootDriveFolder || parsed.rootDriveFolder === 'Shallot-Declutter')

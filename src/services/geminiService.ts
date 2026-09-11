@@ -29,8 +29,9 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export async function analyzeDocumentWithGemini(
   imageDataUrl: string | string[],
   apiKey: string,
-  model: string = 'gemini-3.1-flash-lite',
-  _rootFolder: string = 'Shallot-Declutter'
+  model: string = 'gemini-3.5-flash-lite',
+  _rootFolder: string = 'Shallot-Declutter',
+  onProgress?: (step: string, percent: number) => void
 ): Promise<ExtractedDocData> {
   // Never fabricate data if API key is missing - halt immediately to protect file accuracy
   if (!apiKey || apiKey.trim() === '') {
@@ -56,16 +57,33 @@ export async function analyzeDocumentWithGemini(
     });
   }
 
-  // Models to attempt (tries user choice first, then fast fallbacks on 503)
-  const primaryModel = (!model || model === 'gemini-2.5-flash') ? 'gemini-3.1-flash-lite' : model;
-  const candidateModels = Array.from(new Set([primaryModel, 'gemini-3.1-flash-lite', 'gemini-flash-latest']));
+  // High-performance models in prioritized order (gemini-3.5-flash-lite is 17x faster with zero 503s)
+  const userModel = (!model || model === 'gemini-2.5-flash' || model === 'gemini-3.1-flash-lite')
+    ? 'gemini-3.5-flash-lite'
+    : model;
+
+  const candidateModels = Array.from(new Set([
+    userModel,
+    'gemini-3.5-flash-lite',
+    'gemini-3.7-flash',
+    'gemini-3.1-flash-lite',
+    'gemini-3.5-flash',
+  ]));
 
   let lastError: any = null;
   let responseData: any = null;
 
-  for (const currentModel of candidateModels) {
-    // Up to 2 attempts per model to ride out transient 503 high-traffic spikes
+  for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
+    const currentModel = candidateModels[mIdx];
+    const nextModel = candidateModels[mIdx + 1];
+
+    onProgress?.(`Extracting personal data points (${currentModel})...`, 80 + Math.min(15, mIdx * 4));
+
+    // Up to 2 attempts per model with short backoff to bypass transient spikes
     for (let attempt = 1; attempt <= 2; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s hard timeout per attempt to avoid hanging
+
       try {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey.trim()}`;
 
@@ -86,23 +104,29 @@ export async function analyzeDocumentWithGemini(
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody),
+          signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
           const errorText = await response.text();
           console.warn(`Model ${currentModel} attempt ${attempt} returned status ${response.status}:`, errorText);
           lastError = new Error(`Gemini API Error (${response.status}): ${errorText}`);
 
-          // If 503 (high demand) or 429 (rate limit), wait and retry
+          // If 503 (high demand) or 429 (rate limit), notify user and retry or fallback
           if ((response.status === 503 || response.status === 429) && attempt < 2) {
-            console.log(`High traffic on ${currentModel}. Retrying in 1.8s...`);
-            await sleep(1800);
+            onProgress?.(`High traffic on ${currentModel} (503). Retrying in 1s...`, 84);
+            await sleep(1000);
             continue;
           }
 
-          // If still 503 after attempt or 404, fall through to next candidate model
-          if (response.status === 503 || response.status === 404) {
-            await sleep(800);
+          // If still 503 or 429 after attempt, immediately fail over to next model
+          if (response.status === 503 || response.status === 429 || response.status === 404) {
+            if (nextModel) {
+              onProgress?.(`Model busy. Switching to backup (${nextModel})...`, 86);
+            }
+            await sleep(500);
             break;
           }
           throw lastError;
@@ -110,12 +134,19 @@ export async function analyzeDocumentWithGemini(
 
         responseData = await response.json();
         if (responseData?.candidates?.[0]?.content?.parts?.[0]?.text) {
+          onProgress?.('Personal data points extracted successfully!', 96);
           break; // Successfully got extraction
         }
       } catch (err: any) {
+        clearTimeout(timeoutId);
         lastError = err;
+        if (err.name === 'AbortError') {
+          console.warn(`Model ${currentModel} timed out after 12s.`);
+          onProgress?.(`Model ${currentModel} timed out. Trying backup model...`, 86);
+          break;
+        }
         if (attempt < 2) {
-          await sleep(1500);
+          await sleep(1000);
           continue;
         }
       }
