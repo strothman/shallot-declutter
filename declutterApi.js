@@ -454,6 +454,45 @@ export async function handleApiRequest(req, res) {
     return true;
   }
 
+  // 6c. DELETE /api/outbox/item - Safely remove a vault item (moves PDF + JSON to Archive/Trash) and reconcile
+  if (pathname === '/api/outbox/item' && req.method === 'DELETE') {
+    const relPdf = urlObj.searchParams.get('pdf');
+    const relJson = urlObj.searchParams.get('json');
+
+    if (!relPdf && !relJson) {
+      sendJson(400, { error: 'Missing pdf or json path parameter' });
+      return true;
+    }
+
+    const trashDir = path.join(archive, 'Trash');
+    fs.mkdirSync(trashDir, { recursive: true });
+
+    try {
+      if (relPdf) {
+        const resolvedPdf = path.resolve(outbox, relPdf);
+        if (resolvedPdf.startsWith(path.resolve(outbox)) && fs.existsSync(resolvedPdf)) {
+          const destPdf = path.join(trashDir, `${Date.now()}_${path.basename(resolvedPdf)}`);
+          fs.renameSync(resolvedPdf, destPdf);
+        }
+      }
+
+      if (relJson) {
+        const resolvedJson = path.resolve(outbox, relJson);
+        if (resolvedJson.startsWith(path.resolve(outbox)) && fs.existsSync(resolvedJson)) {
+          const destJson = path.join(trashDir, `${Date.now()}_${path.basename(resolvedJson)}`);
+          fs.renameSync(resolvedJson, destJson);
+        }
+      }
+
+      // Reconcile outbox catalog to immediately refresh index.json
+      const catalog = scanAndReconcileOutbox(outbox);
+      sendJson(200, { success: true, catalog, total: catalog.length });
+    } catch (err) {
+      sendJson(500, { error: err.message });
+    }
+    return true;
+  }
+
   // 7. GET /api/outbox/check-duplicate - Check for existing file in index.json
   if (pathname === '/api/outbox/check-duplicate' && req.method === 'GET') {
     try {

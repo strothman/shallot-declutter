@@ -139,3 +139,22 @@ export async function updateVaultEntry(params: {
   return res.json();
 }
 
+export async function deleteVaultEntry(params: {
+  relativePdfPath?: string;
+  relativeJsonPath?: string;
+}): Promise<{ success: boolean; catalog: any[]; total: number }> {
+  const query = new URLSearchParams();
+  if (params.relativePdfPath) query.set('pdf', params.relativePdfPath);
+  if (params.relativeJsonPath) query.set('json', params.relativeJsonPath);
+
+  const res = await fetch(`/api/outbox/item?${query.toString()}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Failed to delete vault item: ${errText}`);
+  }
+  return res.json();
+}
+
+

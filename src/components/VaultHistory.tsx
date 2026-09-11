@@ -17,7 +17,7 @@ import {
   Save
 } from 'lucide-react';
 import type { ScannedDocument, OutboxCatalogItem } from '../types';
-import { getOutboxCatalog, updateVaultEntry } from '../services/inboxService';
+import { getOutboxCatalog, updateVaultEntry, deleteVaultEntry } from '../services/inboxService';
 
 interface VaultHistoryProps {
   documents: ScannedDocument[];
@@ -69,6 +69,10 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+
+  // Delete Confirmation State
+  const [itemToDelete, setItemToDelete] = useState<UnifiedVaultItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   // Fetch Outbox/index.json catalog from desktop API (reconciled against physical files)
   const refreshCatalog = async () => {
@@ -291,6 +295,39 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
       setJsonError(`Save failed: ${err.message}`);
     } finally {
       setIsSavingEdit(false);
+    }
+  };
+
+  // Delete Handlers
+  const handlePromptDelete = (item: UnifiedVaultItem) => {
+    setItemToDelete(item);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
+
+    try {
+      if (itemToDelete.relativePdfPath || itemToDelete.relativeJsonPath) {
+        const res = await deleteVaultEntry({
+          relativePdfPath: itemToDelete.relativePdfPath,
+          relativeJsonPath: itemToDelete.relativeJsonPath,
+        });
+        if (res && Array.isArray(res.catalog)) {
+          setCatalogItems(res.catalog);
+          if (onUpdateVaultCount) {
+            onUpdateVaultCount(res.total);
+          }
+        }
+      }
+
+      // Also delete from local ledger if present
+      onDeleteDoc(itemToDelete.id);
+      setItemToDelete(null);
+    } catch (err: any) {
+      alert(`Failed to delete document: ${err.message}`);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -845,21 +882,21 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
                       </a>
                     ) : null}
 
-                    {item.source === 'local' && (
-                      <button
-                        onClick={() => onDeleteDoc(item.id)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--text-muted)',
-                          cursor: 'pointer',
-                          padding: '4px',
-                        }}
-                        title="Remove from history"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    )}
+                    {/* Delete Vault Item Button */}
+                    <button
+                      onClick={() => handlePromptDelete(item)}
+                      className="btn-icon"
+                      style={{
+                        width: '30px',
+                        height: '30px',
+                        color: 'var(--text-muted)',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = '#EF4444')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                      title="Delete from Vault (with confirmation)"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1253,6 +1290,134 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
                   <span>{isSavingEdit ? 'Saving...' : 'Save Changes'}</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal Overlay */}
+      {itemToDelete && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '20px',
+          }}
+          onClick={() => !isDeleting && setItemToDelete(null)}
+        >
+          <div
+            className="glass-panel"
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              padding: '24px',
+              borderRadius: '16px',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              background: 'var(--bg-surface)',
+              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.7)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Trash2 size={22} color="#EF4444" />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                  Delete Document from Vault?
+                </h3>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                  Please confirm to remove this document from your vault.
+                </p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: 'var(--bg-surface-elevated)',
+                padding: '12px 14px',
+                borderRadius: '10px',
+                border: '1px solid var(--border-glass)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+                fontSize: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Document:</span>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {itemToDelete.filename}
+                </span>
+              </div>
+              {itemToDelete.issuer && itemToDelete.issuer !== 'Unknown' && itemToDelete.issuer !== 'N/A' && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Issuer:</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{itemToDelete.issuer}</span>
+                </div>
+              )}
+              {itemToDelete.personOrPatient && itemToDelete.personOrPatient !== 'N/A' && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Person / Patient:</span>
+                  <span style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>{itemToDelete.personOrPatient}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Date:</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{itemToDelete.statementDate || 'Unknown'}</span>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>
+              This document and its metadata sidecar will be safely moved to your <strong>Archive/Trash</strong> folder and removed from the active Vault catalog.
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', marginTop: '4px' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setItemToDelete(null)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{
+                  background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
+                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)',
+                  borderColor: '#EF4444',
+                }}
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+              >
+                <Trash2 size={14} />
+                <span>{isDeleting ? 'Deleting...' : 'Delete Document'}</span>
+              </button>
             </div>
           </div>
         </div>
