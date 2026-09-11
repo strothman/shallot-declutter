@@ -50,6 +50,9 @@ Shallot Declutter is classified as a **Personal Data Entry Desktop Utility**. It
 | **Smart "Photo Burst" Auto-Grouping** | 🟢 Fully Working | 1-click detection and bundling of multiple phone camera photos taken within 3 minutes of each other. |
 | **Vault Multi-Facet Search & CSV Export** | 🟢 Fully Working | Live search, Category/Person/Year filter pills, and 1-click audit-ready CSV spreadsheet download. |
 | **Pre-Filing Duplicate Guard** | 🟢 Fully Working | Checks `Outbox/index.json` for reference number and issuer matches to prevent accidental double-filing. |
+| **Physical Disk JSON Scan on Load** | 🟢 Fully Working | Automatically traverses `Outbox` directories on startup to reconcile index against actual physical sidecar files. |
+| **In-Vault Entry & Raw JSON Editor** | 🟢 Fully Working | Modal editor on every vault card supporting both structured form fields and raw JSON editing with disk persistence. |
+| **Typography Antialiasing & Text Smoothing** | 🟢 Fully Working | Sharp, clean typography across all controls and select dropdowns with zero disjointed glyph collisions. |
 
 ---
 
