@@ -95,3 +95,30 @@ export async function saveToOutbox(params: SaveToOutboxParams): Promise<SaveToOu
 
   return res.json();
 }
+
+export async function getOutboxCatalog(): Promise<{ success: boolean; catalog: any[]; total: number }> {
+  const res = await fetch('/api/outbox/catalog');
+  if (!res.ok) {
+    throw new Error(`Failed to load outbox catalog: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function checkDuplicate(params: {
+  ref?: string;
+  issuer?: string;
+  date?: string;
+  amount?: string;
+}): Promise<{ isDuplicate: boolean; match?: any }> {
+  const query = new URLSearchParams();
+  if (params.ref) query.set('ref', params.ref);
+  if (params.issuer) query.set('issuer', params.issuer);
+  if (params.date) query.set('date', params.date);
+  if (params.amount) query.set('amount', params.amount);
+
+  const res = await fetch(`/api/outbox/check-duplicate?${query.toString()}`);
+  if (!res.ok) {
+    return { isDuplicate: false };
+  }
+  return res.json();
+}

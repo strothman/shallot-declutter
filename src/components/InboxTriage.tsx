@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Inbox,
   RefreshCw,
@@ -21,6 +21,11 @@ import {
   LayoutGrid,
   List,
   FileText,
+  RotateCw,
+  ChevronLeft,
+  ChevronRight,
+  Layers,
+  AlertTriangle,
 } from 'lucide-react';
 import type { InboxItem, InboxStatus, ExtractedDocData, AppSettings, ScannedDocument } from '../types';
 import {
@@ -29,6 +34,7 @@ import {
   discardInboxFile,
   fetchFileAsDataUrl,
   saveToOutbox,
+  checkDuplicate,
 } from '../services/inboxService';
 import { analyzeDocumentWithGemini } from '../services/geminiService';
 import { createPdfFromPages } from '../services/pdfService';
@@ -90,6 +96,168 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
     metadata: ExtractedDocData;
   } | null>(null);
 
+  // Pre-Filing Duplicate Guard state
+  const [duplicateMatch, setDuplicateMatch] = useState<any | null>(null);
+
+  // Smart Photo Burst Auto-Grouping
+  interface BurstBundle {
+    id: string;
+    files: InboxItem[];
+    formattedTime: string;
+    description: string;
+  }
+
+  const detectedBundles: BurstBundle[] = useMemo(() => {
+    if (files.length < 2) return [];
+
+    const sorted = [...files].sort((a, b) => new Date(a.mtime).getTime() - new Date(b.mtime).getTime());
+    const clusters: InboxItem[][] = [];
+    let currentCluster: InboxItem[] = [sorted[0]];
+
+    for (let i = 1; i < sorted.length; i++) {
+      const prevTime = new Date(sorted[i - 1].mtime).getTime();
+      const currTime = new Date(sorted[i].mtime).getTime();
+      const diffSecs = (currTime - prevTime) / 1000;
+
+      // Group if within 180 seconds (3 minutes) of previous photo
+      if (diffSecs <= 180) {
+        currentCluster.push(sorted[i]);
+      } else {
+        if (currentCluster.length >= 2) {
+          clusters.push(currentCluster);
+        }
+        currentCluster = [sorted[i]];
+      }
+    }
+    if (currentCluster.length >= 2) {
+      clusters.push(currentCluster);
+    }
+
+    return clusters.map((cluster, idx) => {
+      const first = cluster[0];
+      let timeStr = '';
+      try {
+        const d = new Date(first.mtime);
+        timeStr = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + ' on ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      } catch {
+        timeStr = first.mtime;
+      }
+      return {
+        id: `burst_${idx}_${first.name}`,
+        files: cluster,
+        formattedTime: timeStr,
+        description: `${cluster.length} pages captured together (${timeStr})`,
+      };
+    });
+  }, [files]);
+
+  // Page rotation helper (90° clockwise using offscreen canvas)
+  const rotateCurrentPage = async (index: number) => {
+    if (!triageBundle) return;
+    const currentDataUrl = triageBundle.pages[index];
+    if (!currentDataUrl || (currentDataUrl.startsWith('blob:') && triageBundle.fileNames[index]?.toLowerCase().endsWith('.pdf'))) {
+      return;
+    }
+
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = currentDataUrl;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.height;
+      canvas.height = img.width;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((90 * Math.PI) / 180);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+      const rotatedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      setTriageBundle((prev) => {
+        if (!prev) return null;
+        const updatedPages = [...prev.pages];
+        updatedPages[index] = rotatedDataUrl;
+        return { ...prev, pages: updatedPages };
+      });
+    } catch (e) {
+      console.warn('Rotation failed:', e);
+    }
+  };
+
+  // Move page position in bundle
+  const movePage = (fromIndex: number, toIndex: number) => {
+    if (!triageBundle) return;
+    if (toIndex < 0 || toIndex >= triageBundle.pages.length) return;
+
+    setTriageBundle((prev) => {
+      if (!prev) return null;
+      const pages = [...prev.pages];
+      const fileNames = [...prev.fileNames];
+
+      const [movedPage] = pages.splice(fromIndex, 1);
+      pages.splice(toIndex, 0, movedPage);
+
+      const [movedFile] = fileNames.splice(fromIndex, 1);
+      fileNames.splice(toIndex, 0, movedFile);
+
+      return { ...prev, pages, fileNames };
+    });
+    setActivePageIdx(toIndex);
+  };
+
+  // Remove individual page from bundle
+  const removePageFromBundle = (index: number) => {
+    if (!triageBundle || triageBundle.pages.length <= 1) return;
+    if (!window.confirm(`Remove page ${index + 1} from this document bundle?`)) return;
+
+    setTriageBundle((prev) => {
+      if (!prev) return null;
+      const pages = prev.pages.filter((_, i) => i !== index);
+      const fileNames = prev.fileNames.filter((_, i) => i !== index);
+      return { ...prev, pages, fileNames };
+    });
+    setActivePageIdx((prev) => Math.max(0, Math.min(prev, (triageBundle?.pages.length || 2) - 2)));
+  };
+
+  // Duplicate check effect against Outbox catalog
+  useEffect(() => {
+    if (!triageBundle?.metadata) {
+      setDuplicateMatch(null);
+      return;
+    }
+    const meta = triageBundle.metadata;
+    let isMounted = true;
+    checkDuplicate({
+      ref: meta.referenceNumber,
+      issuer: meta.issuer,
+      date: meta.statementDate,
+      amount: meta.amountDue,
+    })
+      .then((res) => {
+        if (isMounted) {
+          setDuplicateMatch(res.isDuplicate ? res.match : null);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setDuplicateMatch(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    triageBundle?.metadata?.referenceNumber,
+    triageBundle?.metadata?.issuer,
+    triageBundle?.metadata?.statementDate,
+    triageBundle?.metadata?.amountDue,
+  ]);
+
   const loadInbox = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -145,8 +313,8 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
     }
   };
 
-  const handleStartTriage = async (singleFile?: InboxItem) => {
-    const targetNames = singleFile ? [singleFile.name] : selectedFiles;
+  const handleStartTriage = async (singleFile?: InboxItem, customNames?: string[]) => {
+    const targetNames = customNames ? customNames : singleFile ? [singleFile.name] : selectedFiles;
     if (targetNames.length === 0) return;
 
     setIsAnalyzing(true);
@@ -508,6 +676,94 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
           </button>
         </div>
       </div>
+
+      {/* SMART "PHOTO BURST" AUTO-GROUPING BANNER */}
+      {detectedBundles.length > 0 && selectedFiles.length === 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+          {detectedBundles.map((bundle) => (
+            <div
+              key={bundle.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 18px',
+                borderRadius: '16px',
+                background: 'rgba(212, 130, 68, 0.08)',
+                border: '1px solid var(--border-glass-bright)',
+                gap: '14px',
+                flexWrap: 'wrap',
+                boxShadow: '0 4px 18px rgba(0,0,0,0.2)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: 'var(--accent-gradient)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#FFFFFF',
+                    flexShrink: 0,
+                    boxShadow: 'var(--shadow-glow)',
+                  }}
+                >
+                  <Layers size={18} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Multi-Page Document Detected
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        background: 'rgba(212, 130, 68, 0.22)',
+                        color: 'var(--accent-primary)',
+                        border: '1px solid rgba(212, 130, 68, 0.35)',
+                      }}
+                    >
+                      {bundle.files.length} Pages
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                    Captured in the same session around {bundle.formattedTime} ({bundle.files[0].name.slice(0, 15)}...)
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  onClick={() => {
+                    const names = bundle.files.map((f) => f.name);
+                    setSelectedFiles(names);
+                    handleStartTriage(undefined, names);
+                  }}
+                  disabled={isAnalyzing}
+                  className="btn-primary"
+                  style={{
+                    padding: '8px 18px',
+                    fontSize: '12px',
+                    boxShadow: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <Sparkles size={14} />
+                  <span>1-Click Bundle & Triage ({bundle.files.length} Pages)</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Empty State */}
       {files.length === 0 && !isLoading && (
@@ -1162,16 +1418,107 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
                     marginBottom: '12px',
                     fontSize: '12px',
                     color: 'var(--text-muted)',
+                    gap: '8px',
+                    flexWrap: 'wrap',
                   }}
                 >
-                  <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
-                    Document Viewer — {triageBundle.fileNames[activePageIdx]}
-                  </span>
-                  {triageBundle.pages.length > 1 && (
-                    <span style={{ background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>
                       Page {activePageIdx + 1} of {triageBundle.pages.length}
                     </span>
-                  )}
+                    <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
+                      ({triageBundle.fileNames[activePageIdx]})
+                    </span>
+                  </div>
+
+                  {/* Page Manipulation Toolbar */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {/* Rotate 90° Clockwise */}
+                    <button
+                      onClick={() => rotateCurrentPage(activePageIdx)}
+                      title="Rotate Page 90° Clockwise"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-glass)',
+                        background: 'rgba(255,255,255,0.06)',
+                        color: 'var(--text-primary)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <RotateCw size={13} />
+                      <span>Rotate 90°</span>
+                    </button>
+
+                    {/* Move Left */}
+                    {triageBundle.pages.length > 1 && (
+                      <button
+                        onClick={() => movePage(activePageIdx, activePageIdx - 1)}
+                        disabled={activePageIdx === 0}
+                        title="Move Page Earlier (◀)"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '5px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-glass)',
+                          background: activePageIdx === 0 ? 'transparent' : 'rgba(255,255,255,0.06)',
+                          color: activePageIdx === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
+                          cursor: activePageIdx === 0 ? 'not-allowed' : 'pointer',
+                          opacity: activePageIdx === 0 ? 0.5 : 1,
+                        }}
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                    )}
+
+                    {/* Move Right */}
+                    {triageBundle.pages.length > 1 && (
+                      <button
+                        onClick={() => movePage(activePageIdx, activePageIdx + 1)}
+                        disabled={activePageIdx === triageBundle.pages.length - 1}
+                        title="Move Page Later (▶)"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '5px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-glass)',
+                          background: activePageIdx === triageBundle.pages.length - 1 ? 'transparent' : 'rgba(255,255,255,0.06)',
+                          color: activePageIdx === triageBundle.pages.length - 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                          cursor: activePageIdx === triageBundle.pages.length - 1 ? 'not-allowed' : 'pointer',
+                          opacity: activePageIdx === triageBundle.pages.length - 1 ? 0.5 : 1,
+                        }}
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                    )}
+
+                    {/* Remove Page from Bundle */}
+                    {triageBundle.pages.length > 1 && (
+                      <button
+                        onClick={() => removePageFromBundle(activePageIdx)}
+                        title="Remove this page from document bundle"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '5px 8px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          color: 'var(--accent-rose)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Primary Viewer Window */}
@@ -1208,35 +1555,82 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
                   )}
                 </div>
 
-                {/* Multi-Page Pagination Strip */}
+                {/* Interactive Multi-Page Thumbnail Reorder Strip */}
                 {triageBundle.pages.length > 1 && (
                   <div
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      marginTop: '12px',
+                      gap: '10px',
+                      marginTop: '14px',
+                      overflowX: 'auto',
+                      padding: '4px 2px',
                     }}
                   >
-                    {triageBundle.pages.map((_, pIdx) => (
-                      <button
-                        key={pIdx}
-                        onClick={() => setActivePageIdx(pIdx)}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: '8px',
-                          border: activePageIdx === pIdx ? '1px solid var(--accent-primary)' : '1px solid var(--border-glass)',
-                          background: activePageIdx === pIdx ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
-                          color: '#FFFFFF',
-                          fontSize: '12px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Page {pIdx + 1}
-                      </button>
-                    ))}
+                    {triageBundle.pages.map((pData, pIdx) => {
+                      const isActive = activePageIdx === pIdx;
+                      return (
+                        <div
+                          key={pIdx}
+                          onClick={() => setActivePageIdx(pIdx)}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '4px',
+                            cursor: 'pointer',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: '52px',
+                              height: '68px',
+                              borderRadius: '8px',
+                              border: isActive ? '2px solid var(--accent-primary)' : '1px solid var(--border-glass)',
+                              overflow: 'hidden',
+                              background: '#0B0F19',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              position: 'relative',
+                              boxShadow: isActive ? 'var(--shadow-glow)' : 'none',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <img
+                              src={pData}
+                              alt={`Page ${pIdx + 1}`}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                            <span
+                              style={{
+                                position: 'absolute',
+                                bottom: '2px',
+                                right: '2px',
+                                background: 'rgba(0,0,0,0.75)',
+                                color: '#FFFFFF',
+                                fontSize: '9px',
+                                fontWeight: 800,
+                                padding: '1px 4px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              {pIdx + 1}
+                            </span>
+                          </div>
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              color: isActive ? 'var(--accent-primary)' : 'var(--text-muted)',
+                            }}
+                          >
+                            p.{pIdx + 1}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1641,6 +2035,35 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
                   </div>
                 )}
 
+                {/* PRE-FILING DUPLICATE GUARD WARNING */}
+                {duplicateMatch && (
+                  <div
+                    style={{
+                      marginBottom: '18px',
+                      padding: '14px 16px',
+                      borderRadius: '14px',
+                      background: 'rgba(245, 158, 11, 0.12)',
+                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                      display: 'flex',
+                      gap: '12px',
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <AlertTriangle size={20} color="var(--accent-amber)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div style={{ fontSize: '12px', lineHeight: 1.5, flex: 1 }}>
+                      <div style={{ fontWeight: 800, color: 'var(--accent-amber)' }}>
+                        Potential Duplicate Detected
+                      </div>
+                      <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        A matching document was already filed to <code style={{ color: '#FFF' }}>{duplicateMatch.relativePdfPath}</code> on {formatDate(duplicateMatch.filedAt)}.
+                      </div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '4px' }}>
+                        Reference #: {duplicateMatch.referenceNumber || 'N/A'} • Issuer: {duplicateMatch.issuer}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Sticky Action Footer */}
                 <div
                   style={{
@@ -1679,16 +2102,26 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
                       padding: '12px 28px',
                       borderRadius: '12px',
                       border: 'none',
-                      background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                      background: duplicateMatch
+                        ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)'
+                        : 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
                       color: '#FFFFFF',
                       fontSize: '14px',
                       fontWeight: 700,
                       cursor: 'pointer',
-                      boxShadow: '0 4px 16px rgba(16, 185, 129, 0.35)',
+                      boxShadow: duplicateMatch
+                        ? '0 4px 16px rgba(245, 158, 11, 0.35)'
+                        : '0 4px 16px rgba(16, 185, 129, 0.35)',
                     }}
                   >
                     <FileCheck2 size={18} className={isFiling ? 'spin-icon' : ''} />
-                    <span>{isFiling ? 'Compiling PDF & Filing...' : 'Approve & Save to Outbox'}</span>
+                    <span>
+                      {isFiling
+                        ? 'Compiling PDF & Filing...'
+                        : duplicateMatch
+                        ? 'Confirm & File Anyway'
+                        : 'Approve & Save to Outbox'}
+                    </span>
                   </button>
                 </div>
               </div>

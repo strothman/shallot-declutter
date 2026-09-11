@@ -63,6 +63,23 @@ export interface ScannedDocument {
   errorMessage?: string;
 }
 
+export interface OutboxCatalogItem {
+  id: string;
+  filedAt: string;
+  relativePdfPath: string;
+  relativeJsonPath?: string;
+  documentType: string;
+  statementDate: string;
+  personOrPatient?: string;
+  issuer?: string;
+  providerOrDoctor?: string;
+  topicOrProcedure?: string;
+  referenceNumber?: string;
+  amountDue?: string;
+  tags?: string[];
+  metadata?: ExtractedDocData;
+}
+
 export type ThemeMode =
   | 'shallot-plum'
   | 'high-contrast-slate'

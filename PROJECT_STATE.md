@@ -46,6 +46,10 @@ Shallot Declutter is classified as a **Personal Data Entry Desktop Utility**. It
 | **Local Vault History** | 🟢 Fully Working | Saves all processed documents to browser LocalStorage with direct links to Google Drive files. |
 | **5 High-Visibility Eye Comfort Themes** | 🟢 Fully Working | Instant 1-click theme switcher in Header and Settings: **Shallot Plum** (Kitchen Keeper signature), **High-Contrast Slate**, **Crisp Light Mode**, **Forest Pine**, and **Cyber Midnight**. |
 | **Clean Archive Staging** | 🟢 Fully Working | Moves raw processed photos cleanly to `G:\My Drive\IDE\Declutter\Archive` (outside `Inbox`), allowing manual user review and deletion without cluttering the incoming scan folder. |
+| **Interactive Page Reordering & 90° Rotation** | 🟢 Fully Working | Visual page rotation, re-sequencing (move left/right), and page pruning directly in the Triage Studio. |
+| **Smart "Photo Burst" Auto-Grouping** | 🟢 Fully Working | 1-click detection and bundling of multiple phone camera photos taken within 3 minutes of each other. |
+| **Vault Multi-Facet Search & CSV Export** | 🟢 Fully Working | Live search, Category/Person/Year filter pills, and 1-click audit-ready CSV spreadsheet download. |
+| **Pre-Filing Duplicate Guard** | 🟢 Fully Working | Checks `Outbox/index.json` for reference number and issuer matches to prevent accidental double-filing. |
 
 ---
 

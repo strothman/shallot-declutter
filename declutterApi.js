@@ -329,5 +329,120 @@ export async function handleApiRequest(req, res) {
     return true;
   }
 
+  // 6. GET /api/outbox/catalog - Fetch master Outbox/index.json catalog
+  if (pathname === '/api/outbox/catalog' && req.method === 'GET') {
+    try {
+      const masterIndexPath = path.join(outbox, 'index.json');
+      let catalog = [];
+      if (fs.existsSync(masterIndexPath)) {
+        try {
+          catalog = JSON.parse(fs.readFileSync(masterIndexPath, 'utf-8'));
+          if (!Array.isArray(catalog)) catalog = [];
+        } catch {
+          catalog = [];
+        }
+      }
+      sendJson(200, { success: true, catalog, total: catalog.length });
+    } catch (err) {
+      sendJson(500, { error: err.message });
+    }
+    return true;
+  }
+
+  // 7. GET /api/outbox/check-duplicate - Check for existing file in index.json
+  if (pathname === '/api/outbox/check-duplicate' && req.method === 'GET') {
+    try {
+      const ref = (urlObj.searchParams.get('ref') || '').trim().toLowerCase();
+      const issuer = (urlObj.searchParams.get('issuer') || '').trim().toLowerCase();
+      const date = (urlObj.searchParams.get('date') || '').trim();
+      const amount = (urlObj.searchParams.get('amount') || '').trim();
+
+      const masterIndexPath = path.join(outbox, 'index.json');
+      let catalog = [];
+      if (fs.existsSync(masterIndexPath)) {
+        try {
+          catalog = JSON.parse(fs.readFileSync(masterIndexPath, 'utf-8'));
+          if (!Array.isArray(catalog)) catalog = [];
+        } catch {}
+      }
+
+      let matchedItem = null;
+
+      for (const item of catalog) {
+        const itemRef = String(item.referenceNumber || '').trim().toLowerCase();
+        const itemIssuer = String(item.issuer || '').trim().toLowerCase();
+        const itemDate = String(item.statementDate || '').trim();
+        const itemAmount = String(item.amountDue || '').trim();
+
+        // Check 1: Specific reference/account number match
+        if (ref && ref.length >= 4 && itemRef === ref) {
+          matchedItem = item;
+          break;
+        }
+
+        // Check 2: Same Issuer + Same Statement Date + Same Amount Due
+        if (
+          issuer &&
+          date &&
+          itemIssuer &&
+          itemDate &&
+          (itemIssuer.includes(issuer) || issuer.includes(itemIssuer)) &&
+          itemDate === date &&
+          (!amount || amount === '0' || amount === 'N/A' || itemAmount === amount)
+        ) {
+          matchedItem = item;
+          break;
+        }
+      }
+
+      if (matchedItem) {
+        sendJson(200, { isDuplicate: true, match: matchedItem });
+      } else {
+        sendJson(200, { isDuplicate: false, match: null });
+      }
+    } catch (err) {
+      sendJson(500, { error: err.message });
+    }
+    return true;
+  }
+
+  // 8. GET /api/outbox/file?path=... - Stream an outbox PDF or JSON
+  if (pathname === '/api/outbox/file' && req.method === 'GET') {
+    const relPath = urlObj.searchParams.get('path');
+    if (!relPath) {
+      sendJson(400, { error: 'Missing path parameter' });
+      return true;
+    }
+
+    // Security: sanitize relative path and ensure it stays inside outbox
+    const resolvedPath = path.resolve(outbox, relPath);
+    if (!resolvedPath.startsWith(path.resolve(outbox))) {
+      sendJson(403, { error: 'Access denied: outside outbox directory' });
+      return true;
+    }
+
+    if (!fs.existsSync(resolvedPath)) {
+      sendJson(404, { error: 'File not found' });
+      return true;
+    }
+
+    const ext = path.extname(resolvedPath).toLowerCase();
+    const mimeTypes = {
+      '.pdf': 'application/pdf',
+      '.json': 'application/json',
+      '.jpg': 'image/jpeg',
+      '.png': 'image/png',
+    };
+
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-cache',
+    });
+    fs.createReadStream(resolvedPath).pipe(res);
+    return true;
+  }
+
   return false;
 }
