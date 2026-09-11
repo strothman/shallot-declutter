@@ -66,12 +66,35 @@ export async function enhanceDocumentImage(
   });
 }
 
+export function dataUrlToBlob(dataUrl: string, defaultMime = 'application/pdf'): Blob {
+  const parts = dataUrl.split(',');
+  const mimeMatch = parts[0]?.match(/:(.*?);/);
+  const mime = mimeMatch ? mimeMatch[1] : defaultMime;
+  const rawBase64 = parts[1] || parts[0];
+  const byteString = atob(rawBase64);
+  const u8arr = new Uint8Array(byteString.length);
+  for (let i = 0; i < byteString.length; i++) {
+    u8arr[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([u8arr], { type: mime });
+}
+
 /**
  * Compiles an array of page data URLs into a multi-page PDF Blob
  */
 export async function createPdfFromPages(pages: string[]): Promise<Blob> {
   if (pages.length === 0) {
     throw new Error('No pages provided to compile PDF');
+  }
+
+  // If a single page is already a valid PDF, return the original pristine PDF directly
+  // (Prevents jsPDF from embedding a PDF into an image stream, which corrupts it to blank white)
+  if (
+    pages.length === 1 &&
+    (pages[0].startsWith('data:application/pdf') || pages[0].startsWith('data:;base64,JVBERi') || pages[0].startsWith('JVBERi'))
+  ) {
+    const cleanUrl = pages[0].startsWith('JVBERi') ? `data:application/pdf;base64,${pages[0]}` : pages[0];
+    return dataUrlToBlob(cleanUrl, 'application/pdf');
   }
 
   // Create standard A4 portrait PDF (210 x 297 mm)

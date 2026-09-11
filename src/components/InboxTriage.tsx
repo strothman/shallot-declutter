@@ -37,7 +37,7 @@ import {
   checkDuplicate,
 } from '../services/inboxService';
 import { analyzeDocumentWithGemini } from '../services/geminiService';
-import { createPdfFromPages } from '../services/pdfService';
+import { createPdfFromPages, dataUrlToBlob } from '../services/pdfService';
 import { saveVaultItem } from '../services/storageService';
 import { optimizeImageForAi } from '../services/imageOptimizer';
 
@@ -406,8 +406,32 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
     });
 
     try {
-      // 1. Compile multi-page PDF
-      const pdfBlob = await createPdfFromPages(triageBundle.pages);
+      // 1. Compile multi-page PDF or retain pristine original PDF
+      let pdfBlob: Blob;
+
+      const isSinglePdf =
+        triageBundle.fileNames.length === 1 &&
+        triageBundle.fileNames[0].toLowerCase().endsWith('.pdf');
+
+      if (isSinglePdf) {
+        const firstPage = triageBundle.pages[0];
+        if (
+          firstPage &&
+          (firstPage.startsWith('data:application/pdf') ||
+            firstPage.startsWith('data:;base64,JVBERi') ||
+            firstPage.startsWith('JVBERi'))
+        ) {
+          const cleanUrl = firstPage.startsWith('JVBERi')
+            ? `data:application/pdf;base64,${firstPage}`
+            : firstPage;
+          pdfBlob = dataUrlToBlob(cleanUrl, 'application/pdf');
+        } else {
+          const res = await fetch(`/api/inbox/file?name=${encodeURIComponent(triageBundle.fileNames[0])}`);
+          pdfBlob = await res.blob();
+        }
+      } else {
+        pdfBlob = await createPdfFromPages(triageBundle.pages);
+      }
 
       setTriageProgress({
         isOpen: true,
