@@ -7,9 +7,19 @@ import {
   ExternalLink, 
   Check, 
   Eye, 
-  EyeOff
+  EyeOff,
+  Palette
 } from 'lucide-react';
-import type { AppSettings } from '../types';
+import type { AppSettings, ThemeMode } from '../types';
+import { applyTheme } from '../services/storageService';
+
+const THEME_OPTIONS: { id: ThemeMode; name: string; dot: string; desc: string; icon: string }[] = [
+  { id: 'shallot-plum', name: 'Shallot Plum', dot: '#D48244', desc: 'Warm Copper & Velvet Plum (Kitchen Keeper Signature)', icon: '🧅' },
+  { id: 'high-contrast-slate', name: 'High-Contrast Slate', dot: '#38BDF8', desc: 'Pure White Text on Charcoal (Maximum Legibility)', icon: '🌙' },
+  { id: 'crisp-light', name: 'Crisp Light Mode', dot: '#4F46E5', desc: 'Clean Paper White & Deep Ink (Zero Eye Strain)', icon: '☀️' },
+  { id: 'forest-pine', name: 'Forest Pine', dot: '#10B981', desc: 'Calming Sage & Mint (Minimal Blue Light)', icon: '🌲' },
+  { id: 'deep-indigo', name: 'Cyber Midnight', dot: '#6366F1', desc: 'Classic Deep Indigo Dark Theme', icon: '🌌' },
+];
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -28,6 +38,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [rootDriveFolder, setRootDriveFolder] = useState(settings.rootDriveFolder || 'Shallot-Declutter');
   const [enhanceContrast, setEnhanceContrast] = useState(settings.enhanceContrast ?? true);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [selectedTheme, setSelectedTheme] = useState<ThemeMode>(settings.theme || 'shallot-plum');
+
+  const handleSelectTheme = (theme: ThemeMode) => {
+    setSelectedTheme(theme);
+    applyTheme(theme);
+  };
 
   const handleSave = () => {
     onSaveSettings({
@@ -37,6 +53,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       autoFile,
       rootDriveFolder,
       enhanceContrast,
+      theme: selectedTheme,
     });
     onClose();
   };
@@ -149,9 +166,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   📥 <strong>Inbox:</strong> G:\My Drive\IDE\Declutter\Inbox
                   <br />
                   📤 <strong>Outbox:</strong> G:\My Drive\IDE\Declutter\Outbox
+                  <br />
+                  🗄️ <strong>Archive:</strong> G:\My Drive\IDE\Declutter\Archive
                 </div>
                 <div style={{ color: 'var(--accent-emerald)', marginTop: '8px', fontWeight: 600 }}>
-                  No OAuth client IDs, web logins, or credentials needed. Your files sync automatically!
+                  Processed raw scans move cleanly to Archive so you can manually delete them whenever you choose!
                 </div>
               </div>
             </div>
@@ -207,6 +226,83 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onChange={(e) => setEnhanceContrast(e.target.checked)}
                 style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: 'var(--accent-primary)' }}
               />
+            </div>
+          </div>
+
+          {/* Section 4: Eye Comfort & Color Theme */}
+          <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Palette size={18} color="var(--accent-primary)" />
+                <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Visual Theme & Eye Comfort</h3>
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Click any theme to preview live
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+              {THEME_OPTIONS.map((th) => {
+                const isCurrent = selectedTheme === th.id;
+                return (
+                  <button
+                    key={th.id}
+                    type="button"
+                    onClick={() => handleSelectTheme(th.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      border: isCurrent ? '2px solid var(--accent-primary)' : '1px solid var(--border-glass)',
+                      background: isCurrent ? 'rgba(255, 255, 255, 0.08)' : 'var(--input-bg)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.15s ease',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontSize: '20px' }}>{th.icon}</span>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 700 }}>{th.name}</span>
+                          <span
+                            style={{
+                              width: '9px',
+                              height: '9px',
+                              borderRadius: '50%',
+                              backgroundColor: th.dot,
+                              display: 'inline-block',
+                              boxShadow: `0 0 8px ${th.dot}`,
+                            }}
+                          />
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          {th.desc}
+                        </div>
+                      </div>
+                    </div>
+                    {isCurrent && (
+                      <div
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          background: 'var(--accent-primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#FFFFFF',
+                        }}
+                      >
+                        <Check size={14} />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

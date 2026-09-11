@@ -27,6 +27,7 @@ export interface InboxStatus {
   connected: boolean;
   inboxPath: string;
   outboxPath: string;
+  archivePath?: string;
   inboxCount: number;
 }
 
@@ -62,6 +63,13 @@ export interface ScannedDocument {
   errorMessage?: string;
 }
 
+export type ThemeMode =
+  | 'shallot-plum'
+  | 'high-contrast-slate'
+  | 'crisp-light'
+  | 'forest-pine'
+  | 'deep-indigo';
+
 export interface AppSettings {
   geminiApiKey: string;
   geminiModel: string;
@@ -72,6 +80,7 @@ export interface AppSettings {
   rootDriveFolder: string;
   enhanceContrast: boolean;
   useDemoMode: boolean;
+  theme?: ThemeMode;
 }
 
 // Global declaration for Google Identity Services

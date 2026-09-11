@@ -1,5 +1,125 @@
-:root {
-  /* Color Palette - Modern Deep Indigo & Slate Dark Theme */
+/* ==========================================================================
+   THEME DESIGN TOKENS
+   5 High-Visibility, Eye-Comfort Themes (including signature Shallot Plum)
+   ========================================================================== */
+
+/* 1. SIGNATURE SHALLOT PLUM (From Shallot Kitchen Keeper) */
+:root,
+[data-theme="shallot-plum"] {
+  --bg-primary: #180D21;              /* Deep Velvet Plum */
+  --bg-surface: #261533;             /* Elevated Plum Card Surface */
+  --bg-surface-elevated: #3D234A;    /* Interactive Plum Pill / Chip */
+  --bg-glass: rgba(24, 13, 33, 0.94);
+  --bg-glass-card: rgba(38, 21, 51, 0.75);
+  --border-glass: rgba(212, 130, 68, 0.25); /* Warm Copper Tint */
+  --border-glass-bright: rgba(212, 130, 68, 0.45);
+
+  --accent-primary: #D48244;         /* Warm Shallot Copper Glow */
+  --accent-primary-hover: #E69150;
+  --accent-gradient: linear-gradient(135deg, #D48244 0%, #B84A7E 50%, #4A1D6A 100%);
+  --accent-cyan: #F39C12;            /* Golden Amber */
+  --accent-emerald: #2ECC71;         /* Fresh Sprout Green */
+  --accent-amber: #E67E22;           /* Carrot Amber */
+  --accent-rose: #E74C3C;            /* Tomato Red */
+
+  --text-primary: #F5EFF9;           /* Pure Soft Lilac-White (High Contrast) */
+  --text-secondary: #D1BADB;         /* Crisp Lavender */
+  --text-muted: #9B84A6;
+  --text-inverse: #180D21;
+
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --shadow-glow: 0 0 24px rgba(212, 130, 68, 0.35);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* 2. HIGH-CONTRAST SLATE (Pure White Text on Charcoal - Maximum Legibility) */
+[data-theme="high-contrast-slate"] {
+  --bg-primary: #090D16;              /* True Dark Slate/Charcoal */
+  --bg-surface: #131B2E;             /* Slate Surface */
+  --bg-surface-elevated: #1E293B;    /* Elevated Slate 800 */
+  --bg-glass: rgba(15, 23, 42, 0.95);
+  --bg-glass-card: rgba(30, 41, 59, 0.85);
+  --border-glass: rgba(255, 255, 255, 0.16);
+  --border-glass-bright: rgba(255, 255, 255, 0.3);
+
+  --accent-primary: #38BDF8;         /* High-Vis Sky Blue */
+  --accent-primary-hover: #0284C7;
+  --accent-gradient: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
+  --accent-cyan: #38BDF8;
+  --accent-emerald: #34D399;
+  --accent-amber: #FBBF24;
+  --accent-rose: #F87171;
+
+  --text-primary: #FFFFFF;           /* 100% Pure White Text */
+  --text-secondary: #CBD5E1;         /* Bright Light Slate */
+  --text-muted: #94A3B8;
+  --text-inverse: #090D16;
+
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --shadow-glow: 0 0 24px rgba(56, 189, 248, 0.4);
+}
+
+/* 3. CRISP LIGHT MODE (Paper White & Deep Ink - Zero Eye Strain for Reading) */
+[data-theme="crisp-light"] {
+  --bg-primary: #F1F5F9;              /* Clean Porcelain Linen */
+  --bg-surface: #FFFFFF;             /* Pure White Paper Cards */
+  --bg-surface-elevated: #E2E8F0;    /* Muted Border / Chip */
+  --bg-glass: rgba(255, 255, 255, 0.95);
+  --bg-glass-card: rgba(255, 255, 255, 0.95);
+  --border-glass: rgba(15, 23, 42, 0.12);
+  --border-glass-bright: rgba(15, 23, 42, 0.22);
+
+  --accent-primary: #4F46E5;         /* Royal Indigo */
+  --accent-primary-hover: #4338CA;
+  --accent-gradient: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+  --accent-cyan: #0284C7;
+  --accent-emerald: #059669;
+  --accent-amber: #D97706;
+  --accent-rose: #DC2626;
+
+  --text-primary: #0F172A;           /* Deep Ink Black (Maximum Contrast) */
+  --text-secondary: #334155;         /* Charcoal Grey */
+  --text-muted: #64748B;             /* Steel Grey */
+  --text-inverse: #FFFFFF;
+
+  --input-bg: #FFFFFF;
+  --shadow-glow: 0 4px 18px rgba(79, 70, 229, 0.25);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.1);
+}
+
+/* 4. FOREST PINE & EUCALYPTUS (Calming Nature / Minimal Blue Light) */
+[data-theme="forest-pine"] {
+  --bg-primary: #0C1A14;              /* Deep Forest Midnight */
+  --bg-surface: #142820;             /* Pine Card Surface */
+  --bg-surface-elevated: #1E3B30;    /* Elevated Sage */
+  --bg-glass: rgba(12, 26, 20, 0.95);
+  --bg-glass-card: rgba(20, 40, 32, 0.85);
+  --border-glass: rgba(52, 211, 153, 0.22);
+  --border-glass-bright: rgba(52, 211, 153, 0.4);
+
+  --accent-primary: #10B981;         /* Emerald Mint */
+  --accent-primary-hover: #059669;
+  --accent-gradient: linear-gradient(135deg, #10B981 0%, #059669 50%, #0D9488 100%);
+  --accent-cyan: #2DD4BF;
+  --accent-emerald: #34D399;
+  --accent-amber: #F59E0B;
+  --accent-rose: #F43F5E;
+
+  --text-primary: #F0FDF4;           /* Soft Mint White */
+  --text-secondary: #C6F6D5;         /* Pale Sage */
+  --text-muted: #799E8B;
+  --text-inverse: #0C1A14;
+
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --shadow-glow: 0 0 24px rgba(16, 185, 129, 0.35);
+}
+
+/* 5. CYBER MIDNIGHT (Original Deep Indigo Dark Theme) */
+[data-theme="deep-indigo"] {
   --bg-primary: #0B0F19;
   --bg-surface: #131B2E;
   --bg-surface-elevated: #1E293B;
@@ -8,7 +128,6 @@
   --border-glass: rgba(255, 255, 255, 0.08);
   --border-glass-bright: rgba(255, 255, 255, 0.16);
 
-  /* Accents */
   --accent-primary: #6366F1;       /* Indigo */
   --accent-primary-hover: #4F46E5;
   --accent-gradient: linear-gradient(135deg, #6366F1 0%, #8B5CF6 50%, #06B6D4 100%);
@@ -17,27 +136,13 @@
   --accent-amber: #F59E0B;
   --accent-rose: #F43F5E;
   
-  /* Text */
   --text-primary: #F8FAFC;
   --text-secondary: #94A3B8;
   --text-muted: #64748B;
   --text-inverse: #0B0F19;
 
-  /* Typography */
-  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
-
-  /* iOS Safe Areas */
-  --sat: env(safe-area-inset-top, 0px);
-  --sab: env(safe-area-inset-bottom, 0px);
-  --sal: env(safe-area-inset-left, 0px);
-  --sar: env(safe-area-inset-right, 0px);
-
-  /* Shadows & Blurs */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --input-bg: rgba(255, 255, 255, 0.05);
   --shadow-glow: 0 0 24px rgba(99, 102, 241, 0.35);
-  --shadow-glow-emerald: 0 0 24px rgba(16, 185, 129, 0.35);
 }
 
 * {

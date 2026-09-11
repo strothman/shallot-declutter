@@ -134,6 +134,7 @@ export const App: React.FC = () => {
             setActiveTab(tab);
           }
         }}
+        onChangeTheme={(theme) => handleUpdateSettings({ ...settings, theme })}
         inboxCount={inboxCount}
         vaultCount={vault.length}
         onOpenSettings={() => setShowSettingsModal(true)}

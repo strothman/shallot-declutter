@@ -11,13 +11,23 @@ const DEFAULT_SETTINGS: AppSettings = {
   rootDriveFolder: 'G:\\My Drive\\IDE\\Declutter',
   enhanceContrast: true,
   useDemoMode: false,
+  theme: 'shallot-plum',
 };
+
+export function applyTheme(theme: string = 'shallot-plum'): void {
+  if (typeof document !== 'undefined') {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+}
 
 export function loadSettings(): AppSettings {
   try {
     const envKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { ...DEFAULT_SETTINGS, geminiApiKey: envKey };
+    if (!raw) {
+      applyTheme('shallot-plum');
+      return { ...DEFAULT_SETTINGS, geminiApiKey: envKey };
+    }
     const parsed = JSON.parse(raw);
     const model = (!parsed.geminiModel || parsed.geminiModel === 'gemini-2.5-flash')
       ? 'gemini-3.1-flash-lite'
@@ -27,20 +37,28 @@ export function loadSettings(): AppSettings {
       ? 'G:\\My Drive\\IDE\\Declutter'
       : parsed.rootDriveFolder;
 
+    const theme = parsed.theme || 'shallot-plum';
+    applyTheme(theme);
+
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
+      theme,
       geminiModel: model,
       rootDriveFolder: rootFolder,
       geminiApiKey: parsed.geminiApiKey?.trim() ? parsed.geminiApiKey : envKey,
     };
   } catch {
+    applyTheme('shallot-plum');
     return DEFAULT_SETTINGS;
   }
 }
 
 export function saveSettings(settings: AppSettings): void {
   try {
+    if (settings.theme) {
+      applyTheme(settings.theme);
+    }
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   } catch (err) {
     console.error('Failed to save settings:', err);

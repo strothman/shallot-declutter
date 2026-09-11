@@ -44,6 +44,8 @@ Shallot Declutter is classified as a **Personal Data Entry Desktop Utility**. It
 | **Multi-Page PDF Generation** | 🟢 Fully Working | Merges captured pages or Inbox files into clean, searchable PDFs. |
 | **Desktop Google Drive Integration** | 🟢 Fully Working | Transparent sync through Google Drive for Desktop (`G:\My Drive\`) without requiring OAuth client setup. |
 | **Local Vault History** | 🟢 Fully Working | Saves all processed documents to browser LocalStorage with direct links to Google Drive files. |
+| **5 High-Visibility Eye Comfort Themes** | 🟢 Fully Working | Instant 1-click theme switcher in Header and Settings: **Shallot Plum** (Kitchen Keeper signature), **High-Contrast Slate**, **Crisp Light Mode**, **Forest Pine**, and **Cyber Midnight**. |
+| **Clean Archive Staging** | 🟢 Fully Working | Moves raw processed photos cleanly to `G:\My Drive\IDE\Declutter\Archive` (outside `Inbox`), allowing manual user review and deletion without cluttering the incoming scan folder. |
 
 ---
 

@@ -24,8 +24,10 @@ Output MUST be a valid JSON object matching this exact schema:
 
 Return ONLY the raw JSON string without markdown code block fences.`;
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function analyzeDocumentWithGemini(
-  imageDataUrl: string,
+  imageDataUrl: string | string[],
   apiKey: string,
   model: string = 'gemini-3.1-flash-lite',
   _rootFolder: string = 'Shallot-Declutter'
@@ -35,10 +37,24 @@ export async function analyzeDocumentWithGemini(
     throw new Error('Gemini API key is not configured. Please enter your key in Settings before triaging documents.');
   }
 
-  // Extract raw base64 data and mimeType (supports both images and PDFs)
-  const mimeMatch = imageDataUrl.match(/^data:([a-zA-Z0-9/+-]+);base64,/);
-  const mimeType = mimeMatch ? mimeMatch[1] : (imageDataUrl.startsWith('JVBERi') ? 'application/pdf' : 'image/jpeg');
-  const base64Data = imageDataUrl.replace(/^data:[a-zA-Z0-9/+-]+;base64,/, '');
+  // Normalize pages array (if single string, wrap in array)
+  const rawPages = Array.isArray(imageDataUrl) ? imageDataUrl : [imageDataUrl];
+  // Analyze up to 3 pages for high-fidelity multi-page document understanding (e.g. EOB summary + claim line items)
+  const pagesToAnalyze = rawPages.slice(0, 3);
+
+  const parts: any[] = [{ text: PROMPT_SYSTEM }];
+
+  for (const page of pagesToAnalyze) {
+    const mimeMatch = page.match(/^data:([a-zA-Z0-9/+-]+);base64,/);
+    const mimeType = mimeMatch ? mimeMatch[1] : (page.startsWith('JVBERi') ? 'application/pdf' : 'image/jpeg');
+    const base64Data = page.replace(/^data:[a-zA-Z0-9/+-]+;base64,/, '');
+    parts.push({
+      inlineData: {
+        mimeType,
+        data: base64Data,
+      },
+    });
+  }
 
   // Models to attempt (tries user choice first, then fast fallbacks on 503)
   const primaryModel = (!model || model === 'gemini-2.5-flash') ? 'gemini-3.1-flash-lite' : model;
@@ -48,57 +64,65 @@ export async function analyzeDocumentWithGemini(
   let responseData: any = null;
 
   for (const currentModel of candidateModels) {
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey.trim()}`;
+    // Up to 2 attempts per model to ride out transient 503 high-traffic spikes
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey.trim()}`;
 
-      const requestBody = {
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { text: PROMPT_SYSTEM },
-              {
-                inlineData: {
-                  mimeType: mimeType,
-                  data: base64Data,
-                },
-              },
-            ],
+        const requestBody = {
+          contents: [
+            {
+              role: 'user',
+              parts,
+            },
+          ],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1,
           },
-        ],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.1,
-        },
-      };
+        };
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.warn(`Model ${currentModel} failed with status ${response.status}:`, errorText);
-        lastError = new Error(`Gemini API Error (${response.status}): ${errorText}`);
-        // If 503 (high demand) or 404 (model deprecated), try next candidate
-        if (response.status === 503 || response.status === 404) {
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.warn(`Model ${currentModel} attempt ${attempt} returned status ${response.status}:`, errorText);
+          lastError = new Error(`Gemini API Error (${response.status}): ${errorText}`);
+
+          // If 503 (high demand) or 429 (rate limit), wait and retry
+          if ((response.status === 503 || response.status === 429) && attempt < 2) {
+            console.log(`High traffic on ${currentModel}. Retrying in 1.8s...`);
+            await sleep(1800);
+            continue;
+          }
+
+          // If still 503 after attempt or 404, fall through to next candidate model
+          if (response.status === 503 || response.status === 404) {
+            await sleep(800);
+            break;
+          }
+          throw lastError;
+        }
+
+        responseData = await response.json();
+        if (responseData?.candidates?.[0]?.content?.parts?.[0]?.text) {
+          break; // Successfully got extraction
+        }
+      } catch (err: any) {
+        lastError = err;
+        if (attempt < 2) {
+          await sleep(1500);
           continue;
         }
-        throw lastError;
       }
+    }
 
-      responseData = await response.json();
-      if (responseData?.candidates?.[0]?.content?.parts?.[0]?.text) {
-        break; // Successfully got extraction
-      }
-    } catch (err: any) {
-      lastError = err;
-      if (candidateModels.indexOf(currentModel) < candidateModels.length - 1) {
-        continue;
-      }
-      throw err;
+    if (responseData?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      break;
     }
   }
 

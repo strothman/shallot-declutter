@@ -3,6 +3,7 @@ import path from 'path';
 
 export const DEFAULT_INBOX = 'G:\\My Drive\\IDE\\Declutter\\Inbox';
 export const DEFAULT_OUTBOX = 'G:\\My Drive\\IDE\\Declutter\\Outbox';
+export const DEFAULT_ARCHIVE = 'G:\\My Drive\\IDE\\Declutter\\Archive';
 
 // Fallback directory if G: drive isn't connected
 const FALLBACK_BASE = path.join(process.cwd(), 'local-drive');
@@ -10,6 +11,7 @@ const FALLBACK_BASE = path.join(process.cwd(), 'local-drive');
 export function getResolvedPaths() {
   let inbox = DEFAULT_INBOX;
   let outbox = DEFAULT_OUTBOX;
+  let archive = DEFAULT_ARCHIVE;
 
   if (!fs.existsSync(inbox)) {
     try {
@@ -29,7 +31,16 @@ export function getResolvedPaths() {
     }
   }
 
-  return { inbox, outbox };
+  if (!fs.existsSync(archive)) {
+    try {
+      fs.mkdirSync(archive, { recursive: true });
+    } catch {
+      archive = path.join(FALLBACK_BASE, 'Archive');
+      fs.mkdirSync(archive, { recursive: true });
+    }
+  }
+
+  return { inbox, outbox, archive };
 }
 
 function sanitizePathComponent(name) {
@@ -60,7 +71,7 @@ function parseDateComponents(dateString) {
 export async function handleApiRequest(req, res) {
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = urlObj.pathname;
-  const { inbox, outbox } = getResolvedPaths();
+  const { inbox, outbox, archive } = getResolvedPaths();
 
   // Helper JSON responder
   const sendJson = (status, data) => {
@@ -98,6 +109,7 @@ export async function handleApiRequest(req, res) {
       connected: true,
       inboxPath: inbox,
       outboxPath: outbox,
+      archivePath: archive,
       inboxCount,
     });
     return true;
@@ -182,7 +194,7 @@ export async function handleApiRequest(req, res) {
 
     const safeName = path.basename(filename);
     const filePath = path.join(inbox, safeName);
-    const trashDir = path.join(inbox, '.processed', 'discarded');
+    const trashDir = path.join(archive, 'Discarded');
 
     try {
       if (fs.existsSync(filePath)) {
@@ -277,8 +289,8 @@ export async function handleApiRequest(req, res) {
           }
         }
 
-        // Move processed original inbox files to Inbox/.processed
-        const processedDir = path.join(inbox, '.processed');
+        // Move processed original inbox files to Archive (outside Inbox)
+        const processedDir = archive;
         fs.mkdirSync(processedDir, { recursive: true });
 
         const movedFiles = [];
@@ -296,7 +308,7 @@ export async function handleApiRequest(req, res) {
                 fs.renameSync(srcPath, finalTarget);
                 movedFiles.push(safeSrc);
               } catch (moveErr) {
-                console.warn('Could not move file to .processed:', safeSrc, moveErr);
+                console.warn('Could not move file to Archive:', safeSrc, moveErr);
               }
             }
           }

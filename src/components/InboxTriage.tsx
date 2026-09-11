@@ -33,6 +33,7 @@ import {
 import { analyzeDocumentWithGemini } from '../services/geminiService';
 import { createPdfFromPages } from '../services/pdfService';
 import { saveVaultItem } from '../services/storageService';
+import { optimizeImageForAi } from '../services/imageOptimizer';
 
 const DOC_TYPES = [
   'EOB',
@@ -74,6 +75,13 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [previewFile, setPreviewFile] = useState<InboxItem | null>(null);
   const [activePageIdx, setActivePageIdx] = useState<number>(0);
+
+  // Real-time Loading & Progress State
+  const [triageProgress, setTriageProgress] = useState<{
+    isOpen: boolean;
+    step: string;
+    percent: number;
+  }>({ isOpen: false, step: '', percent: 0 });
 
   // Desktop Side-by-Side Studio state
   const [triageBundle, setTriageBundle] = useState<{
@@ -143,44 +151,101 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
 
     setIsAnalyzing(true);
     setActivePageIdx(0);
+    setTriageProgress({
+      isOpen: true,
+      step: `Initializing triage for ${targetNames.length} ${targetNames.length === 1 ? 'page' : 'pages'}...`,
+      percent: 5,
+    });
 
     try {
-      // 1. Download selected files as Data URLs in order
-      const orderedFiles = files.filter((f) => targetNames.includes(f.name));
+      // 1. Download selected files as Data URLs in exact user selection order
+      const orderedFiles = targetNames
+        .map((name) => files.find((f) => f.name === name))
+        .filter((f): f is InboxItem => Boolean(f));
       const pageDataUrls: string[] = [];
 
-      for (const f of orderedFiles) {
+      for (let i = 0; i < orderedFiles.length; i++) {
+        const f = orderedFiles[i];
+        setTriageProgress({
+          isOpen: true,
+          step: `Loading page ${i + 1} of ${orderedFiles.length}: ${f.name}...`,
+          percent: Math.round(5 + ((i + 1) / orderedFiles.length) * 45),
+        });
         const dataUrl = await fetchFileAsDataUrl(f.url);
         pageDataUrls.push(dataUrl);
       }
 
-      // 2. Analyze with Gemini (using the primary page)
+      // 2. Optimize images for AI vision (shrinks 7MB camera photos to fast 300KB web payloads)
+      setTriageProgress({
+        isOpen: true,
+        step: `Optimizing ${pageDataUrls.length} pages for fast AI analysis...`,
+        percent: 55,
+      });
+
+      const optimizedPages: string[] = [];
+      for (let i = 0; i < pageDataUrls.length; i++) {
+        setTriageProgress({
+          isOpen: true,
+          step: `Optimizing page ${i + 1} of ${pageDataUrls.length}...`,
+          percent: Math.round(55 + ((i + 1) / pageDataUrls.length) * 20),
+        });
+        const opt = await optimizeImageForAi(pageDataUrls[i]);
+        optimizedPages.push(opt);
+      }
+
+      // 3. Analyze with Gemini (using up to 3 key pages for multi-page document context)
+      setTriageProgress({
+        isOpen: true,
+        step: `Extracting personal data points with Gemini 3.1 AI...`,
+        percent: 80,
+      });
+
       const metadata = await analyzeDocumentWithGemini(
-        pageDataUrls[0],
+        optimizedPages,
         settings.geminiApiKey,
         settings.geminiModel,
         'Shallot-Declutter'
       );
 
+      setTriageProgress({
+        isOpen: true,
+        step: `Opening Desktop Triage Studio...`,
+        percent: 100,
+      });
+
+      await new Promise((r) => setTimeout(r, 250));
+
       setTriageBundle({
         fileNames: orderedFiles.map((f) => f.name),
-        pages: pageDataUrls,
+        pages: optimizedPages,
         metadata,
       });
     } catch (err: any) {
       onError(err?.message || 'Failed to analyze document');
     } finally {
       setIsAnalyzing(false);
+      setTriageProgress({ isOpen: false, step: '', percent: 0 });
     }
   };
 
   const handleApproveAndFile = async () => {
     if (!triageBundle) return;
     setIsFiling(true);
+    setTriageProgress({
+      isOpen: true,
+      step: `Compiling ${triageBundle.pages.length} pages into standardized PDF...`,
+      percent: 30,
+    });
 
     try {
       // 1. Compile multi-page PDF
       const pdfBlob = await createPdfFromPages(triageBundle.pages);
+
+      setTriageProgress({
+        isOpen: true,
+        step: `Writing PDF & metadata JSON to Google Drive Outbox...`,
+        percent: 70,
+      });
 
       // 2. Save directly to Outbox / TYPE / YYYY / MM /
       const result = await saveToOutbox({
@@ -190,6 +255,12 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
         statementDate: triageBundle.metadata.statementDate,
         filename: triageBundle.metadata.suggestedFilename,
         metadata: triageBundle.metadata,
+      });
+
+      setTriageProgress({
+        isOpen: true,
+        step: `Updating local vault catalog...`,
+        percent: 95,
       });
 
       // 3. Record in local vault ledger
@@ -207,6 +278,13 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
       };
       saveVaultItem(newScannedDoc);
 
+      setTriageProgress({
+        isOpen: true,
+        step: `Filing complete!`,
+        percent: 100,
+      });
+      await new Promise((r) => setTimeout(r, 300));
+
       // 4. Update UI
       onFiledSuccess(`Filed to Outbox: ${result.relativeFolder}\\${result.filename}`);
       setTriageBundle(null);
@@ -216,6 +294,7 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
       onError(err?.message || 'Failed to file document to Outbox');
     } finally {
       setIsFiling(false);
+      setTriageProgress({ isOpen: false, step: '', percent: 0 });
     }
   };
 
@@ -1613,6 +1692,103 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REAL-TIME PROGRESS BAR MODAL */}
+      {triageProgress.isOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 160,
+            background: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(10px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-glass-bright)',
+              borderRadius: '24px',
+              maxWidth: '540px',
+              width: '100%',
+              padding: '36px 32px',
+              boxShadow: '0 30px 80px rgba(0,0,0,0.85)',
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '16px',
+                background: 'var(--accent-gradient)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 20px',
+                color: '#FFFFFF',
+                boxShadow: 'var(--shadow-glow)',
+              }}
+            >
+              <Sparkles size={28} className="spin-icon" />
+            </div>
+
+            <h3 style={{ fontSize: '19px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '6px' }}>
+              Personal Data Entry in Progress
+            </h3>
+
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '24px', lineHeight: 1.5 }}>
+              Optimizing camera scans and analyzing document with Gemini 3.1
+            </p>
+
+            {/* Glowing Animated Progress Bar */}
+            <div
+              style={{
+                width: '100%',
+                height: '10px',
+                borderRadius: '9999px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                overflow: 'hidden',
+                marginBottom: '14px',
+                position: 'relative',
+              }}
+            >
+              <div
+                style={{
+                  width: `${triageProgress.percent}%`,
+                  height: '100%',
+                  borderRadius: '9999px',
+                  background: 'var(--accent-gradient)',
+                  transition: 'width 0.25s ease-out',
+                  boxShadow: '0 0 16px rgba(99, 102, 241, 0.7)',
+                }}
+              />
+            </div>
+
+            {/* Current Step Label & Percentage */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontSize: '12px',
+                fontWeight: 600,
+              }}
+            >
+              <span style={{ color: 'var(--accent-cyan)', textAlign: 'left', flex: 1, paddingRight: '12px' }}>
+                {triageProgress.step}
+              </span>
+              <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                {triageProgress.percent}%
+              </span>
             </div>
           </div>
         </div>
