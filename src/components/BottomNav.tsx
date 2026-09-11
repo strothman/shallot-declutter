@@ -1,19 +1,49 @@
 import React from 'react';
-import { Camera, FolderArchive, Settings } from 'lucide-react';
+import { Inbox, Camera, FolderArchive, Settings } from 'lucide-react';
 
 interface BottomNavProps {
-  activeTab: 'scan' | 'vault' | 'settings';
-  onChangeTab: (tab: 'scan' | 'vault' | 'settings') => void;
+  activeTab: 'inbox' | 'scan' | 'vault' | 'settings';
+  onChangeTab: (tab: 'inbox' | 'scan' | 'vault' | 'settings') => void;
   vaultCount?: number;
+  inboxCount?: number;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
   activeTab,
   onChangeTab,
   vaultCount = 0,
+  inboxCount = 0,
 }) => {
   return (
     <nav className="bottom-nav">
+      <button
+        className={`nav-item ${activeTab === 'inbox' ? 'active' : ''}`}
+        onClick={() => onChangeTab('inbox')}
+        style={{ position: 'relative' }}
+      >
+        <Inbox size={22} />
+        <span>Inbox</span>
+        {inboxCount > 0 && (
+          <span
+            style={{
+              position: 'absolute',
+              top: '4px',
+              right: '18px',
+              background: 'var(--accent-primary)',
+              color: '#FFFFFF',
+              fontSize: '10px',
+              fontWeight: 800,
+              padding: '1px 5px',
+              borderRadius: '9999px',
+              minWidth: '16px',
+              textAlign: 'center',
+            }}
+          >
+            {inboxCount}
+          </span>
+        )}
+      </button>
+
       <button
         className={`nav-item ${activeTab === 'scan' ? 'active' : ''}`}
         onClick={() => onChangeTab('scan')}

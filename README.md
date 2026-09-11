@@ -1,30 +1,19 @@
 <div align="center">
 
-# 🧅 Shallot Declutter — AI Document Organizer
+# 🧅 Shallot Declutter — Personal Data Entry Desktop Utility
 
-**Turn messy physical paperwork into neatly organized, searchable digital files in seconds.**
+**AI-powered personal data entry workstation: turn messy physical paperwork, medical reports, bills, and EOBs into structured, searchable digital records.**
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg?style=flat-square)](CHANGELOG.md)
-[![Platform](https://img.shields.io/badge/Platform-iPhone%20%7C%20Android%20%7C%20Web-orange.svg?style=flat-square)](#-iphone--mobile-app-guide)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20PC%20Desktop-orange.svg?style=flat-square)](#-desktop-pc-guide)
+[![Classification](https://img.shields.io/badge/Category-Personal%20Data%20Entry-green.svg?style=flat-square)](#-system-classification)
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg?style=flat-square)](LICENSE)
-[![PWA Ready](https://img.shields.io/badge/PWA-Installable-success.svg?style=flat-square)](public/manifest.json)
-[![Deploy](https://img.shields.io/badge/Deploy-GitHub%20Pages-teal.svg?style=flat-square)](.github/workflows/deploy.yml)
-
-<p align="center">
-  <a href="https://strothman.github.io/shallot-declutter/"><strong>📱 Open the Live Web App</strong></a> •
-  <a href="#-what-does-shallot-declutter-do">What is Declutter?</a> •
-  <a href="#-iphone--mobile-app-guide">iPhone Setup</a> •
-  <a href="#-key-features-explained-in-plain-english">Features</a> •
-  <a href="#-quick-start-guide-for-beginners">Quick Start</a>
-</p>
 
 </div>
 
 ---
 
-Welcome to **Shallot Declutter**! If you have ever felt overwhelmed by stacks of medical bills, Explanation of Benefits (EOB) forms, tax notices, receipts, or insurance statements, this app was made for you.
-
-Shallot Declutter uses your camera or uploaded photos, reads the text using Google's Gemini AI, automatically names the file in a standardized format, creates a multi-page PDF, and saves it directly to your Google Drive in the right folder.
+Welcome to **Shallot Declutter**! Classified strictly as a **Personal Data Entry Desktop Utility**, this software eliminates manual data entry by extracting, validating, and cataloging personal records from medical records, radiology reports, hospital bills, insurance EOBs, tax notices, and utilities.
 
 ---
 

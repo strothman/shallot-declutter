@@ -1,14 +1,32 @@
 # 📊 Shallot Declutter — Project State & Health
 
-> **Last Updated:** September 4, 2026  
-> **Current Version:** `v0.1.0` (MVP - Fully Functional Prototype)  
+> **Last Updated:** September 11, 2026  
+> **Current Version:** `v0.2.0` (Dedicated PC Desktop Utility)  
+> **Classification:** **Personal Data Entry Workstation**  
 > **Status:** 🟢 Healthy & Ready to Run
 
 ---
 
-## 🎯 What is this Document?
+## 🎯 System Classification: Personal Data Entry
 
-If you are new to this project or returning after some time, this document is your **live status dashboard**. It tells you what currently works, how the system fits together, what limitations exist, and what features are coming next—without burying you in complicated engineering jargon.
+Shallot Declutter is classified as a **Personal Data Entry Desktop Utility**. Its purpose is to eliminate manual data entry by extracting, structuring, validating, and cataloging personal records from messy paperwork and scans into standardized digital assets.
+
+### 🌟 Core Goals:
+1. **Zero Manual Transcription**: Seamlessly ingest physical scans, photos, and digital PDFs via Google Drive Inbox and extract high-fidelity structured data using Gemini 3.1 multimodal vision.
+2. **Comprehensive Data Point Capture**: Extract every critical field needed for sorting, filtering, and record-keeping:
+   - **Entity / Subject**: Patient, account holder, taxpayer, customer name
+   - **Provider / Facility**: Clinic, hospital, doctor, physician, utility, or agency
+   - **Clinical / Billing Detail**: Specific topic, exam, or procedure (e.g. `MRI Spine Lumbar w/o Contrast`)
+   - **Identifiers**: MRN, Accession #, Account #, Claim #, or Invoice #
+   - **Financials & Timing**: Statement date, due date, amount due, patient responsibility
+   - **Clinical & Diagnostic Notes**: Bulleted key findings, impressions, and diagnoses
+   - **Search Metadata**: Auto-generated tags and standardized taxonomy
+3. **Dual-Artifact Storage**: For every processed document, persist:
+   - A clean, standardized multi-page PDF (`Outbox\<TYPE>\<YYYY>\<MM>\<filename>.pdf`)
+   - A self-describing JSON metadata sidecar (`Outbox\<TYPE>\<YYYY>\<MM>\<filename>.json`)
+   - An updated master cross-category catalog (`Outbox\index.json`)
+4. **Data Isolation & User Privacy**: Process documents directly against Google AI Studio using the user's personal API key, completely decoupled from IDE codebases or consumer chat histories.
+5. **Fail-Closed Integrity**: Protect data accuracy by refusing to fabricate mock data if an extraction fails or is incomplete.
 
 ---
 
@@ -16,16 +34,16 @@ If you are new to this project or returning after some time, this document is yo
 
 | Module / Feature | Status | Description |
 | :--- | :--- | :--- |
-| **Camera & Photo Capture** | 🟢 Fully Working | Live webcam viewfinder with multi-page capture strip and manual file upload fallback. |
-| **Document Image Enhancement** | 🟢 Fully Working | Real-time high-contrast binarization filter to improve document readability. |
-| **Multi-Page PDF Generation** | 🟢 Fully Working | Automatically merges all captured pages into a single downloadable/uploadable PDF via `jsPDF`. |
-| **Gemini AI Vision Extraction** | 🟢 Fully Working | Multimodal analysis using `gemini-2.5-flash` or `gemini-2.5-pro` with structured JSON schema output. |
-| **Demo Mode / Simulation** | 🟢 Fully Working | Realistic instant extraction mock data when no API keys are entered, allowing immediate testing. |
-| **Document Review Card** | 🟢 Fully Working | Interactive bottom review sheet allowing editing of issuer, dates, account #, and folder before filing. |
-| **Google Drive OAuth & Upload** | 🟢 Fully Working | Client-side Google Identity Services (GIS) OAuth token flow + nested folder creation and multipart upload. |
+| **Google Drive Inbox & Triage** | 🟢 Fully Working | Monitors `G:\My Drive\IDE\Declutter\Inbox` for phone camera scans with one-click multi-page bundling & triage. |
+| **Outbox Routing & Structure** | 🟢 Fully Working | Files PDFs into native Windows paths `Outbox\<DocType>\<YYYY>\<MM>\<filename>.pdf`. |
+| **Metadata JSON Sidecars** | 🟢 Fully Working | Automatically writes `<filename>.json` alongside each PDF containing rich extracted metadata. |
+| **Outbox Master Catalog** | 🟢 Fully Working | Maintains `Outbox\index.json` catalog for instant cross-category search, filtering, and sorting. |
+| **Gemini 3.1 AI Vision Extraction** | 🟢 Fully Working | High-speed multimodal analysis extracting Patient, Doctor, Procedure, MRN, Dates, Amounts, Findings & Tags. |
+| **Fail-Closed Safety** | 🟢 Fully Working | Strict protection: never fabricates or guesses mock data on failed extractions; halts and warns user. |
+| **Data Isolation & Privacy** | 🟢 Fully Isolated | Uses direct Google AI Studio API key. Zero access to IDE code, workspaces, transcripts, or personal chats. |
+| **Multi-Page PDF Generation** | 🟢 Fully Working | Merges captured pages or Inbox files into clean, searchable PDFs. |
+| **Desktop Google Drive Integration** | 🟢 Fully Working | Transparent sync through Google Drive for Desktop (`G:\My Drive\`) without requiring OAuth client setup. |
 | **Local Vault History** | 🟢 Fully Working | Saves all processed documents to browser LocalStorage with direct links to Google Drive files. |
-| **Settings Management** | 🟢 Fully Working | Easily configure API keys, models, root Drive folder, and auto-file options. |
-| **GitHub Pages & PWA** | 🟢 Configured | Automated build & deploy workflow via GitHub Actions; relative base paths; installable on iOS/Android. |
 
 ---
 

@@ -4,20 +4,36 @@ const SETTINGS_KEY = 'shallot_declutter_settings_v1';
 const VAULT_KEY = 'shallot_declutter_vault_v1';
 
 const DEFAULT_SETTINGS: AppSettings = {
-  geminiApiKey: '',
-  geminiModel: 'gemini-2.5-flash',
+  geminiApiKey: (import.meta.env.VITE_GEMINI_API_KEY as string) || '',
+  geminiModel: 'gemini-3.1-flash-lite',
   googleClientId: '',
   autoFile: false,
-  rootDriveFolder: 'Shallot-Declutter',
+  rootDriveFolder: 'G:\\My Drive\\IDE\\Declutter',
   enhanceContrast: true,
   useDemoMode: false,
 };
 
 export function loadSettings(): AppSettings {
   try {
+    const envKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return DEFAULT_SETTINGS;
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    if (!raw) return { ...DEFAULT_SETTINGS, geminiApiKey: envKey };
+    const parsed = JSON.parse(raw);
+    const model = (!parsed.geminiModel || parsed.geminiModel === 'gemini-2.5-flash')
+      ? 'gemini-3.1-flash-lite'
+      : parsed.geminiModel;
+
+    const rootFolder = (!parsed.rootDriveFolder || parsed.rootDriveFolder === 'Shallot-Declutter')
+      ? 'G:\\My Drive\\IDE\\Declutter'
+      : parsed.rootDriveFolder;
+
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      geminiModel: model,
+      rootDriveFolder: rootFolder,
+      geminiApiKey: parsed.geminiApiKey?.trim() ? parsed.geminiApiKey : envKey,
+    };
   } catch {
     return DEFAULT_SETTINGS;
   }

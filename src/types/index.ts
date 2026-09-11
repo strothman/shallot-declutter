@@ -1,25 +1,52 @@
 export type DocType = 
-  | 'EOB (Explanation of Benefits)'
+  | 'EOB'
   | 'Medical Bill'
-  | 'Prescription / Rx'
-  | 'Lab / Diagnostic Result'
-  | 'Tax Document (W-2, 1099, Notice)'
+  | 'MRI Report'
+  | 'Imaging & Diagnostic Report'
+  | 'Medical Record'
+  | 'Water Bill'
+  | 'Electric Bill'
+  | 'Utility Bill'
+  | 'Tax Document'
   | 'Receipt'
+  | 'Prescription'
   | 'Insurance Policy'
-  | 'Utility / Service Bill'
-  | 'Legal / Government Notice'
-  | 'Other Document';
+  | 'Lab Result'
+  | 'Legal Notice'
+  | 'Other';
+
+export interface InboxItem {
+  name: string;
+  size: number;
+  mtime: string;
+  url: string;
+  extension: string;
+}
+
+export interface InboxStatus {
+  connected: boolean;
+  inboxPath: string;
+  outboxPath: string;
+  inboxCount: number;
+}
 
 export interface ExtractedDocData {
-  documentType: DocType;
+  documentType: DocType | string;
+  category?: 'Medical' | 'Bills & Utilities' | 'Insurance' | 'Taxes' | 'Legal' | 'Personal' | string;
   issuer: string;
+  personOrPatient?: string; // Patient, account holder, customer, or taxpayer
   statementDate: string; // YYYY-MM-DD
-  patientOrAccount: string;
+  dueDate?: string;
+  referenceNumber?: string; // MRN, Account #, Claim #, Invoice #, Accession #
+  providerOrDoctor?: string; // Ordering doctor, physician, specialist
+  topicOrProcedure?: string; // e.g. Lumbar Spine MRI, Q3 Water & Sewer
   amountDue: string;
   summary: string;
+  keyFindings?: string[];
   suggestedFilename: string;
   targetFolder: string;
   tags: string[];
+  patientOrAccount?: string; // compatibility alias
 }
 
 export interface ScannedDocument {

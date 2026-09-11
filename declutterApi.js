@@ -1,0 +1,321 @@
+import fs from 'fs';
+import path from 'path';
+
+export const DEFAULT_INBOX = 'G:\\My Drive\\IDE\\Declutter\\Inbox';
+export const DEFAULT_OUTBOX = 'G:\\My Drive\\IDE\\Declutter\\Outbox';
+
+// Fallback directory if G: drive isn't connected
+const FALLBACK_BASE = path.join(process.cwd(), 'local-drive');
+
+export function getResolvedPaths() {
+  let inbox = DEFAULT_INBOX;
+  let outbox = DEFAULT_OUTBOX;
+
+  if (!fs.existsSync(inbox)) {
+    try {
+      fs.mkdirSync(inbox, { recursive: true });
+    } catch {
+      inbox = path.join(FALLBACK_BASE, 'Inbox');
+      fs.mkdirSync(inbox, { recursive: true });
+    }
+  }
+
+  if (!fs.existsSync(outbox)) {
+    try {
+      fs.mkdirSync(outbox, { recursive: true });
+    } catch {
+      outbox = path.join(FALLBACK_BASE, 'Outbox');
+      fs.mkdirSync(outbox, { recursive: true });
+    }
+  }
+
+  return { inbox, outbox };
+}
+
+function sanitizePathComponent(name) {
+  // Strip characters not allowed in Windows/Linux folder names: \ / : * ? " < > |
+  return String(name || 'Other')
+    .replace(/[\\/:*?"<>|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim() || 'Other';
+}
+
+function parseDateComponents(dateString) {
+  let yyyy = new Date().getFullYear().toString();
+  let mm = String(new Date().getMonth() + 1).padStart(2, '0');
+
+  if (dateString) {
+    const match = String(dateString).match(/^(\d{4})[-/.]?(\d{2})?/);
+    if (match) {
+      yyyy = match[1];
+      if (match[2]) {
+        mm = match[2];
+      }
+    }
+  }
+
+  return { yyyy, mm };
+}
+
+export async function handleApiRequest(req, res) {
+  const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const pathname = urlObj.pathname;
+  const { inbox, outbox } = getResolvedPaths();
+
+  // Helper JSON responder
+  const sendJson = (status, data) => {
+    res.writeHead(status, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    });
+    res.end(JSON.stringify(data));
+  };
+
+  // CORS Preflight
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    });
+    res.end();
+    return true;
+  }
+
+  // 1. GET /api/status
+  if (pathname === '/api/status' && req.method === 'GET') {
+    let inboxCount = 0;
+    try {
+      if (fs.existsSync(inbox)) {
+        const files = fs.readdirSync(inbox, { withFileTypes: true });
+        inboxCount = files.filter(f => f.isFile() && !f.name.startsWith('.')).length;
+      }
+    } catch {}
+
+    sendJson(200, {
+      connected: true,
+      inboxPath: inbox,
+      outboxPath: outbox,
+      inboxCount,
+    });
+    return true;
+  }
+
+  // 2. GET /api/inbox - List items waiting in Inbox
+  if (pathname === '/api/inbox' && req.method === 'GET') {
+    try {
+      if (!fs.existsSync(inbox)) {
+        return sendJson(200, { files: [] });
+      }
+
+      const entries = fs.readdirSync(inbox, { withFileTypes: true });
+      const validExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.heic', '.pdf', '.tiff']);
+
+      const files = entries
+        .filter(entry => entry.isFile() && !entry.name.startsWith('.'))
+        .filter(entry => validExtensions.has(path.extname(entry.name).toLowerCase()))
+        .map(entry => {
+          const fullPath = path.join(inbox, entry.name);
+          const stats = fs.statSync(fullPath);
+          return {
+            name: entry.name,
+            size: stats.size,
+            mtime: stats.mtime.toISOString(),
+            url: `/api/inbox/file?name=${encodeURIComponent(entry.name)}`,
+            extension: path.extname(entry.name).toLowerCase(),
+          };
+        })
+        .sort((a, b) => new Date(a.mtime).getTime() - new Date(b.mtime).getTime()); // oldest first
+
+      sendJson(200, { inboxPath: inbox, files });
+    } catch (err) {
+      sendJson(500, { error: err.message });
+    }
+    return true;
+  }
+
+  // 3. GET /api/inbox/file?name=... - Stream an image/document
+  if (pathname === '/api/inbox/file' && req.method === 'GET') {
+    const filename = urlObj.searchParams.get('name');
+    if (!filename) {
+      sendJson(400, { error: 'Missing name parameter' });
+      return true;
+    }
+
+    // Security: sanitize against directory traversal
+    const safeName = path.basename(filename);
+    const filePath = path.join(inbox, safeName);
+
+    if (!fs.existsSync(filePath)) {
+      sendJson(404, { error: 'File not found' });
+      return true;
+    }
+
+    const ext = path.extname(safeName).toLowerCase();
+    const mimeTypes = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.webp': 'image/webp',
+      '.pdf': 'application/pdf',
+    };
+
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-cache',
+    });
+    fs.createReadStream(filePath).pipe(res);
+    return true;
+  }
+
+  // 4. DELETE /api/inbox/file?name=... - Discard an inbox file
+  if (pathname === '/api/inbox/file' && req.method === 'DELETE') {
+    const filename = urlObj.searchParams.get('name');
+    if (!filename) {
+      sendJson(400, { error: 'Missing name parameter' });
+      return true;
+    }
+
+    const safeName = path.basename(filename);
+    const filePath = path.join(inbox, safeName);
+    const trashDir = path.join(inbox, '.processed', 'discarded');
+
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.mkdirSync(trashDir, { recursive: true });
+        const destPath = path.join(trashDir, `${Date.now()}_${safeName}`);
+        fs.renameSync(filePath, destPath);
+      }
+      sendJson(200, { success: true, discarded: safeName });
+    } catch (err) {
+      sendJson(500, { error: err.message });
+    }
+    return true;
+  }
+
+  // 5. POST /api/outbox/save - Save PDF to TYPE/YYYY/MM folder and move inbox files
+  if (pathname === '/api/outbox/save' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk;
+    });
+
+    req.on('end', () => {
+      try {
+        const payload = JSON.parse(body);
+        const { fileNames, pdfBase64, docType, statementDate, filename, metadata } = payload;
+
+        if (!pdfBase64 || !filename) {
+          return sendJson(400, { error: 'Missing pdfBase64 or filename' });
+        }
+
+        // Clean folder structure: Outbox / TYPE / YYYY / MM
+        const cleanType = sanitizePathComponent(docType || 'Other Document');
+        const { yyyy, mm } = parseDateComponents(statementDate);
+
+        const destFolder = path.join(outbox, cleanType, yyyy, mm);
+        fs.mkdirSync(destFolder, { recursive: true });
+
+        const safeFilename = path.basename(filename);
+        const destPdfPath = path.join(destFolder, safeFilename);
+
+        // Strip data URL prefix if present and write PDF
+        const cleanBase64 = pdfBase64.replace(/^data:[a-zA-Z0-9/+-]+;base64,/, '');
+        const pdfBuffer = Buffer.from(cleanBase64, 'base64');
+        fs.writeFileSync(destPdfPath, pdfBuffer);
+
+        // Save metadata sidecar JSON alongside the PDF
+        let destJsonPath = null;
+        if (metadata) {
+          const jsonFilename = safeFilename.replace(/\.pdf$/i, '') + '.json';
+          destJsonPath = path.join(destFolder, jsonFilename);
+          fs.writeFileSync(destJsonPath, JSON.stringify(metadata, null, 2), 'utf-8');
+
+          // Update master Outbox/index.json for fast search and cross-category sorting
+          try {
+            const masterIndexPath = path.join(outbox, 'index.json');
+            let indexData = [];
+            if (fs.existsSync(masterIndexPath)) {
+              try {
+                indexData = JSON.parse(fs.readFileSync(masterIndexPath, 'utf-8'));
+                if (!Array.isArray(indexData)) indexData = [];
+              } catch {
+                indexData = [];
+              }
+            }
+
+            const relativePdf = path.join(cleanType, yyyy, mm, safeFilename);
+            const relativeJson = path.join(cleanType, yyyy, mm, jsonFilename);
+
+            // Filter out existing record with same relative path if re-filed
+            indexData = indexData.filter(item => item.relativePdfPath !== relativePdf);
+
+            indexData.unshift({
+              id: `doc_${Date.now()}`,
+              filedAt: new Date().toISOString(),
+              relativePdfPath: relativePdf,
+              relativeJsonPath: relativeJson,
+              documentType: cleanType,
+              statementDate,
+              personOrPatient: metadata.personOrPatient || metadata.patientOrAccount || '',
+              issuer: metadata.issuer || '',
+              providerOrDoctor: metadata.providerOrDoctor || '',
+              topicOrProcedure: metadata.topicOrProcedure || '',
+              referenceNumber: metadata.referenceNumber || '',
+              amountDue: metadata.amountDue || '',
+              tags: metadata.tags || [],
+              metadata,
+            });
+
+            fs.writeFileSync(masterIndexPath, JSON.stringify(indexData, null, 2), 'utf-8');
+          } catch (indexErr) {
+            console.warn('Could not update Outbox/index.json:', indexErr);
+          }
+        }
+
+        // Move processed original inbox files to Inbox/.processed
+        const processedDir = path.join(inbox, '.processed');
+        fs.mkdirSync(processedDir, { recursive: true });
+
+        const movedFiles = [];
+        if (Array.isArray(fileNames)) {
+          for (const name of fileNames) {
+            const safeSrc = path.basename(name);
+            const srcPath = path.join(inbox, safeSrc);
+            if (fs.existsSync(srcPath)) {
+              const targetProcessedPath = path.join(processedDir, safeSrc);
+              try {
+                // If collision, append timestamp
+                const finalTarget = fs.existsSync(targetProcessedPath)
+                  ? path.join(processedDir, `${Date.now()}_${safeSrc}`)
+                  : targetProcessedPath;
+                fs.renameSync(srcPath, finalTarget);
+                movedFiles.push(safeSrc);
+              } catch (moveErr) {
+                console.warn('Could not move file to .processed:', safeSrc, moveErr);
+              }
+            }
+          }
+        }
+
+        sendJson(200, {
+          success: true,
+          savedPath: destPdfPath,
+          savedJsonPath: destJsonPath,
+          relativeFolder: path.join(cleanType, yyyy, mm),
+          filename: safeFilename,
+          movedFiles,
+        });
+      } catch (err) {
+        sendJson(500, { error: err.message });
+      }
+    });
+    return true;
+  }
+
+  return false;
+}

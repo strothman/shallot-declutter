@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
-import { BottomNav } from './components/BottomNav';
+import { InboxTriage } from './components/InboxTriage';
 import { CameraCapture } from './components/CameraCapture';
 import { DocumentReviewSheet } from './components/DocumentReviewSheet';
 import { VaultHistory } from './components/VaultHistory';
@@ -13,7 +13,8 @@ import { uploadPdfToDrive } from './services/driveService';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'scan' | 'vault' | 'settings'>('scan');
+  const [activeTab, setActiveTab] = useState<'inbox' | 'scan' | 'vault' | 'settings'>('inbox');
+  const [inboxCount, setInboxCount] = useState<number>(0);
   const [settings, setSettings] = useState<AppSettings>(loadSettings);
   const [vault, setVault] = useState<ScannedDocument[]>(loadVault);
   const [activeReviewDoc, setActiveReviewDoc] = useState<ScannedDocument | null>(null);
@@ -122,10 +123,19 @@ export const App: React.FC = () => {
 
   return (
     <div className="app-container">
-      {/* Top Header */}
+      {/* Desktop Top Header & Navigation */}
       <Header
         settings={settings}
         activeTab={activeTab}
+        onChangeTab={(tab) => {
+          if (tab === 'settings') {
+            setShowSettingsModal(true);
+          } else {
+            setActiveTab(tab);
+          }
+        }}
+        inboxCount={inboxCount}
+        vaultCount={vault.length}
         onOpenSettings={() => setShowSettingsModal(true)}
       />
 
@@ -134,20 +144,19 @@ export const App: React.FC = () => {
         <div
           style={{
             position: 'fixed',
-            top: 'calc(var(--sat) + 64px)',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            maxWidth: '90%',
-            width: '400px',
+            top: '72px',
+            right: '32px',
+            maxWidth: '420px',
+            width: 'auto',
             zIndex: 100,
             display: 'flex',
             alignItems: 'center',
-            gap: '10px',
-            padding: '12px 18px',
-            borderRadius: '16px',
+            gap: '12px',
+            padding: '14px 20px',
+            borderRadius: '12px',
             background: toast.type === 'error' ? '#EF4444' : toast.type === 'info' ? '#3B82F6' : '#10B981',
             color: '#FFFFFF',
-            boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
+            boxShadow: '0 12px 36px rgba(0,0,0,0.5)',
             fontSize: '13px',
             fontWeight: 600,
             animation: 'fadeIn 0.2s ease-out',
@@ -164,8 +173,17 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Main Content Body */}
+      {/* Main Desktop Workspace Body */}
       <main className="app-content">
+        {activeTab === 'inbox' && (
+          <InboxTriage
+            settings={settings}
+            onFiledSuccess={(msg) => showToast(msg, 'success')}
+            onError={(err) => showToast(err, 'error')}
+            onUpdateBadge={(count) => setInboxCount(count)}
+          />
+        )}
+
         {activeTab === 'scan' && (
           <CameraCapture
             onCaptureComplete={handleCaptureComplete}
@@ -190,7 +208,7 @@ export const App: React.FC = () => {
             <SettingsModal
               settings={settings}
               onSaveSettings={handleUpdateSettings}
-              onClose={() => setActiveTab('scan')}
+              onClose={() => setActiveTab('inbox')}
             />
           </div>
         )}
@@ -215,19 +233,6 @@ export const App: React.FC = () => {
           onClose={() => setShowSettingsModal(false)}
         />
       )}
-
-      {/* Bottom Mobile Navigation Bar */}
-      <BottomNav
-        activeTab={activeTab}
-        onChangeTab={(tab) => {
-          if (tab === 'settings') {
-            setShowSettingsModal(true);
-          } else {
-            setActiveTab(tab);
-          }
-        }}
-        vaultCount={vault.length}
-      />
     </div>
   );
 };

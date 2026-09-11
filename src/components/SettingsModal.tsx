@@ -7,11 +7,9 @@ import {
   ExternalLink, 
   Check, 
   Eye, 
-  EyeOff,
-  LogOut
+  EyeOff
 } from 'lucide-react';
 import type { AppSettings } from '../types';
-import { requestGoogleDriveAuth } from '../services/driveService';
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -25,57 +23,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
 }) => {
   const [geminiApiKey, setGeminiApiKey] = useState(settings.geminiApiKey);
-  const [geminiModel, setGeminiModel] = useState(settings.geminiModel || 'gemini-2.5-flash');
-  const [googleClientId, setGoogleClientId] = useState(settings.googleClientId);
+  const [geminiModel, setGeminiModel] = useState(settings.geminiModel || 'gemini-3.1-flash-lite');
   const [autoFile, setAutoFile] = useState(settings.autoFile);
   const [rootDriveFolder, setRootDriveFolder] = useState(settings.rootDriveFolder || 'Shallot-Declutter');
   const [enhanceContrast, setEnhanceContrast] = useState(settings.enhanceContrast ?? true);
   const [showApiKey, setShowApiKey] = useState(false);
-  const [isAuthenticatingDrive, setIsAuthenticatingDrive] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-
-  const handleConnectGoogleDrive = async () => {
-    if (!googleClientId.trim()) {
-      setAuthError('Please enter your Google Client ID below first.');
-      return;
-    }
-    setAuthError(null);
-    setIsAuthenticatingDrive(true);
-    try {
-      const token = await requestGoogleDriveAuth(googleClientId.trim());
-      const updated: AppSettings = {
-        ...settings,
-        geminiApiKey,
-        geminiModel,
-        googleClientId,
-        googleAccessToken: token,
-        autoFile,
-        rootDriveFolder,
-        enhanceContrast,
-      };
-      onSaveSettings(updated);
-    } catch (err: any) {
-      setAuthError(err?.message || 'Failed to authenticate with Google Drive');
-    } finally {
-      setIsAuthenticatingDrive(false);
-    }
-  };
-
-  const handleDisconnectDrive = () => {
-    const updated: AppSettings = {
-      ...settings,
-      googleAccessToken: undefined,
-      googleUserEmail: undefined,
-    };
-    onSaveSettings(updated);
-  };
 
   const handleSave = () => {
     onSaveSettings({
       ...settings,
       geminiApiKey,
       geminiModel,
-      googleClientId,
       autoFile,
       rootDriveFolder,
       enhanceContrast,
@@ -158,9 +116,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onChange={(e) => setGeminiModel(e.target.value)}
                 style={{ cursor: 'pointer' }}
               >
-                <option value="gemini-2.5-flash" style={{ background: '#1E293B', color: '#FFF' }}>Gemini 2.5 Flash (Recommended - Fastest & Multi-modal)</option>
-                <option value="gemini-1.5-flash" style={{ background: '#1E293B', color: '#FFF' }}>Gemini 1.5 Flash</option>
-                <option value="gemini-1.5-pro" style={{ background: '#1E293B', color: '#FFF' }}>Gemini 1.5 Pro</option>
+                <option value="gemini-flash-latest" style={{ background: '#1E293B', color: '#FFF' }}>Gemini 3.8 Flash (Recommended - Fastest & Multi-modal)</option>
+                <option value="gemini-pro-latest" style={{ background: '#1E293B', color: '#FFF' }}>Gemini Pro (Latest)</option>
+                <option value="gemini-3.1-flash-lite" style={{ background: '#1E293B', color: '#FFF' }}>Gemini 3.1 Flash-Lite</option>
               </select>
             </div>
 
@@ -169,82 +127,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </p>
           </div>
 
-          {/* Section 2: Google Drive Auto-Filing */}
+          {/* Section 2: Google Drive Storage */}
           <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <HardDrive size={18} color="var(--accent-emerald)" />
-                <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Google Drive Sync</h3>
+                <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Google Drive Storage</h3>
               </div>
-              {settings.googleAccessToken ? (
-                <span className="pill pill-emerald" style={{ fontSize: '11px' }}>
-                  Connected
-                </span>
-              ) : (
-                <span className="pill" style={{ fontSize: '11px' }}>
-                  Not Connected
-                </span>
-              )}
+              <span className="pill pill-emerald" style={{ fontSize: '11px', fontWeight: 700 }}>
+                ● Connected & Synced
+              </span>
             </div>
 
-            {/* Google Client ID Input */}
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
-                OAuth 2.0 Web Client ID
-              </label>
-              <input
-                type="text"
-                className="input-field"
-                placeholder="xxxxxx-xxxxxx.apps.googleusercontent.com"
-                value={googleClientId}
-                onChange={(e) => setGoogleClientId(e.target.value)}
-                style={{ fontSize: '12px', fontFamily: 'var(--font-mono)' }}
-              />
-            </div>
-
-            {/* Connect / Disconnect Buttons */}
-            {settings.googleAccessToken ? (
-              <button
-                className="btn-secondary"
-                onClick={handleDisconnectDrive}
-                style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244, 63, 94, 0.3)' }}
-              >
-                <LogOut size={16} />
-                <span>Disconnect Google Drive</span>
-              </button>
-            ) : (
-              <button
-                className="btn-primary"
-                onClick={handleConnectGoogleDrive}
-                disabled={isAuthenticatingDrive}
-              >
-                <HardDrive size={16} />
-                <span>{isAuthenticatingDrive ? 'Connecting...' : 'Sign in with Google Drive'}</span>
-              </button>
-            )}
-
-            {authError && (
-              <p style={{ fontSize: '12px', color: 'var(--accent-rose)' }}>{authError}</p>
-            )}
-
-            {/* Quick Setup Instructions Collapsible / Note */}
-            <div
-              style={{
-                background: 'rgba(15, 23, 42, 0.6)',
-                padding: '10px 12px',
-                borderRadius: '10px',
-                fontSize: '11px',
-                color: 'var(--text-muted)',
-                lineHeight: 1.5,
-              }}
-            >
-              <strong>How to get a free Google Client ID:</strong>
-              <ol style={{ paddingLeft: '16px', marginTop: '4px' }}>
-                <li>Go to Google Cloud Console → Create a project.</li>
-                <li>Enable the <strong>Google Drive API</strong>.</li>
-                <li>Under Credentials → Create OAuth Client ID (Web Application).</li>
-                <li>Add your app origin (e.g. <code>http://localhost:5173</code>) to Authorized JavaScript origins.</li>
-              </ol>
+            <div style={{ background: 'rgba(16, 185, 129, 0.08)', padding: '12px 14px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-emerald)', marginBottom: '4px' }}>
+                ✓ Google Drive for Desktop Active
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                Your files are synchronized automatically through Google Drive on your computer:
+                <div style={{ marginTop: '6px', fontFamily: 'var(--font-mono)', fontSize: '11px', color: '#FFF' }}>
+                  📥 <strong>Inbox:</strong> G:\My Drive\IDE\Declutter\Inbox
+                  <br />
+                  📤 <strong>Outbox:</strong> G:\My Drive\IDE\Declutter\Outbox
+                </div>
+                <div style={{ color: 'var(--accent-emerald)', marginTop: '8px', fontWeight: 600 }}>
+                  No OAuth client IDs, web logins, or credentials needed. Your files sync automatically!
+                </div>
+              </div>
             </div>
           </div>
 
@@ -253,15 +162,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div>
               <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Folder size={14} color="var(--accent-primary)" />
-                Root Folder in Google Drive
+                Declutter Base Folder (Google Drive)
               </label>
               <input
                 type="text"
                 className="input-field"
                 value={rootDriveFolder}
                 onChange={(e) => setRootDriveFolder(e.target.value)}
-                placeholder="Shallot-Declutter"
+                placeholder="G:\My Drive\IDE\Declutter"
+                style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}
               />
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
+                The root directory on your PC containing your <code style={{ color: 'var(--accent-teal)' }}>\Inbox</code> and <code style={{ color: 'var(--accent-teal)' }}>\Outbox</code> folders.
+              </p>
             </div>
 
             {/* Auto-File Toggle */}

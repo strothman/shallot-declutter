@@ -22,16 +22,21 @@ interface DocumentReviewSheetProps {
 }
 
 const DOC_TYPES: DocType[] = [
-  'EOB (Explanation of Benefits)',
+  'EOB',
   'Medical Bill',
-  'Prescription / Rx',
-  'Lab / Diagnostic Result',
-  'Tax Document (W-2, 1099, Notice)',
+  'MRI Report',
+  'Imaging & Diagnostic Report',
+  'Medical Record',
+  'Water Bill',
+  'Electric Bill',
+  'Utility Bill',
+  'Tax Document',
   'Receipt',
+  'Prescription',
   'Insurance Policy',
-  'Utility / Service Bill',
-  'Legal / Government Notice',
-  'Other Document'
+  'Lab Result',
+  'Legal Notice',
+  'Other',
 ];
 
 export const DocumentReviewSheet: React.FC<DocumentReviewSheetProps> = ({
@@ -41,7 +46,7 @@ export const DocumentReviewSheet: React.FC<DocumentReviewSheetProps> = ({
   isFiling,
   isDriveConnected,
 }) => {
-  const [docType, setDocType] = useState<DocType>(document.metadata.documentType);
+  const [docType, setDocType] = useState<string>(document.metadata.documentType || 'Other');
   const [issuer, setIssuer] = useState<string>(document.metadata.issuer);
   const [statementDate, setStatementDate] = useState<string>(document.metadata.statementDate);
   const [amountDue, setAmountDue] = useState<string>(document.metadata.amountDue);
