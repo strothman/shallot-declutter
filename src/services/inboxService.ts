@@ -122,3 +122,20 @@ export async function checkDuplicate(params: {
   }
   return res.json();
 }
+
+export async function updateVaultEntry(params: {
+  relativeJsonPath: string;
+  updatedMetadata: any;
+}): Promise<{ success: boolean; catalog: any[]; total: number }> {
+  const res = await fetch('/api/outbox/edit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Failed to update vault entry: ${errText}`);
+  }
+  return res.json();
+}
+

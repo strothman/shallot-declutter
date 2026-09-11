@@ -68,6 +68,78 @@ function parseDateComponents(dateString) {
   return { yyyy, mm };
 }
 
+function scanAndReconcileOutbox(outbox) {
+  const catalog = [];
+  if (!fs.existsSync(outbox)) {
+    return catalog;
+  }
+
+  function walkDir(dir) {
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walkDir(fullPath);
+        } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.json')) {
+          if (entry.name.toLowerCase() === 'index.json') continue;
+          try {
+            const raw = fs.readFileSync(fullPath, 'utf-8');
+            const metadata = JSON.parse(raw);
+            const pdfPath = fullPath.replace(/\.json$/i, '.pdf');
+            const pdfExists = fs.existsSync(pdfPath);
+            const stat = fs.statSync(fullPath);
+
+            const relativeJson = path.relative(outbox, fullPath);
+            const relativePdf = path.relative(outbox, pdfPath);
+
+            catalog.push({
+              id: `doc_${path.basename(fullPath).replace(/\.json$/i, '')}`,
+              filedAt: stat.mtime.toISOString(),
+              relativePdfPath: relativePdf,
+              relativeJsonPath: relativeJson,
+              documentType: metadata.documentType || 'Other',
+              statementDate: metadata.statementDate || '',
+              personOrPatient: metadata.personOrPatient || metadata.patientOrAccount || 'N/A',
+              issuer: metadata.issuer || 'Unknown',
+              providerOrDoctor: metadata.providerOrDoctor || '',
+              topicOrProcedure: metadata.topicOrProcedure || '',
+              referenceNumber: metadata.referenceNumber || '',
+              amountDue: metadata.amountDue || 'N/A',
+              tags: metadata.tags || [],
+              metadata,
+              pdfExists,
+            });
+          } catch (err) {
+            console.warn('Error reading json sidecar:', fullPath, err);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error walking outbox directory:', dir, e);
+    }
+  }
+
+  walkDir(outbox);
+
+  // Sort newest statement date or filed date first
+  catalog.sort((a, b) => {
+    const dateA = a.statementDate || a.filedAt || '';
+    const dateB = b.statementDate || b.filedAt || '';
+    return dateB.localeCompare(dateA);
+  });
+
+  // Reconcile and save master Outbox/index.json
+  try {
+    const masterIndexPath = path.join(outbox, 'index.json');
+    fs.writeFileSync(masterIndexPath, JSON.stringify(catalog, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Could not write reconciled Outbox/index.json:', err);
+  }
+
+  return catalog;
+}
+
 export async function handleApiRequest(req, res) {
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = urlObj.pathname;
@@ -95,7 +167,7 @@ export async function handleApiRequest(req, res) {
     return true;
   }
 
-  // 1. GET /api/status
+  // 1. GET /api/status - Verified counts of Inbox and Outbox
   if (pathname === '/api/status' && req.method === 'GET') {
     let inboxCount = 0;
     try {
@@ -105,12 +177,15 @@ export async function handleApiRequest(req, res) {
       }
     } catch {}
 
+    const catalog = scanAndReconcileOutbox(outbox);
+
     sendJson(200, {
       connected: true,
       inboxPath: inbox,
       outboxPath: outbox,
       archivePath: archive,
       inboxCount,
+      vaultCount: catalog.length,
     });
     return true;
   }
@@ -329,23 +404,53 @@ export async function handleApiRequest(req, res) {
     return true;
   }
 
-  // 6. GET /api/outbox/catalog - Fetch master Outbox/index.json catalog
+  // 6. GET /api/outbox/catalog - Fetch master Outbox/index.json catalog (reconciled from physical disk files)
   if (pathname === '/api/outbox/catalog' && req.method === 'GET') {
     try {
-      const masterIndexPath = path.join(outbox, 'index.json');
-      let catalog = [];
-      if (fs.existsSync(masterIndexPath)) {
-        try {
-          catalog = JSON.parse(fs.readFileSync(masterIndexPath, 'utf-8'));
-          if (!Array.isArray(catalog)) catalog = [];
-        } catch {
-          catalog = [];
-        }
-      }
+      const catalog = scanAndReconcileOutbox(outbox);
       sendJson(200, { success: true, catalog, total: catalog.length });
     } catch (err) {
       sendJson(500, { error: err.message });
     }
+    return true;
+  }
+
+  // 6b. POST /api/outbox/edit - Update document metadata sidecar JSON and reconcile
+  if (pathname === '/api/outbox/edit' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk;
+    });
+
+    req.on('end', () => {
+      try {
+        const payload = JSON.parse(body || '{}');
+        const { relativeJsonPath, updatedMetadata } = payload;
+
+        if (!relativeJsonPath || !updatedMetadata) {
+          return sendJson(400, { error: 'Missing relativeJsonPath or updatedMetadata' });
+        }
+
+        const resolvedPath = path.resolve(outbox, relativeJsonPath);
+        if (!resolvedPath.startsWith(path.resolve(outbox))) {
+          return sendJson(403, { error: 'Access denied: outside outbox directory' });
+        }
+
+        if (!fs.existsSync(resolvedPath)) {
+          return sendJson(404, { error: 'Sidecar JSON file not found on disk' });
+        }
+
+        // Write updated metadata back to physical JSON file
+        fs.writeFileSync(resolvedPath, JSON.stringify(updatedMetadata, null, 2), 'utf-8');
+
+        // Reconcile catalog
+        const catalog = scanAndReconcileOutbox(outbox);
+
+        sendJson(200, { success: true, catalog, total: catalog.length });
+      } catch (err) {
+        sendJson(500, { error: err.message });
+      }
+    });
     return true;
   }
 

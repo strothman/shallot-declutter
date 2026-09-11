@@ -7,6 +7,7 @@ import { VaultHistory } from './components/VaultHistory';
 import { SettingsModal } from './components/SettingsModal';
 import type { AppSettings, ScannedDocument } from './types';
 import { loadSettings, saveSettings, loadVault, saveVaultItem, deleteVaultItem } from './services/storageService';
+import { getInboxStatus } from './services/inboxService';
 import { analyzeDocumentWithGemini } from './services/geminiService';
 import { createPdfFromPages } from './services/pdfService';
 import { uploadPdfToDrive } from './services/driveService';
@@ -15,6 +16,7 @@ import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'inbox' | 'scan' | 'vault' | 'settings'>('inbox');
   const [inboxCount, setInboxCount] = useState<number>(0);
+  const [vaultCount, setVaultCount] = useState<number>(0);
   const [settings, setSettings] = useState<AppSettings>(loadSettings);
   const [vault, setVault] = useState<ScannedDocument[]>(loadVault);
   const [activeReviewDoc, setActiveReviewDoc] = useState<ScannedDocument | null>(null);
@@ -22,6 +24,22 @@ export const App: React.FC = () => {
   const [isFiling, setIsFiling] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+
+  const refreshCounts = async () => {
+    try {
+      const status = await getInboxStatus();
+      setInboxCount(status.inboxCount);
+      if (typeof status.vaultCount === 'number') {
+        setVaultCount(status.vaultCount);
+      }
+    } catch (err) {
+      console.warn('Could not sync status counts:', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshCounts();
+  }, []);
 
   useEffect(() => {
     saveSettings(settings);
@@ -136,7 +154,7 @@ export const App: React.FC = () => {
         }}
         onChangeTheme={(theme) => handleUpdateSettings({ ...settings, theme })}
         inboxCount={inboxCount}
-        vaultCount={vault.length}
+        vaultCount={vaultCount}
         onOpenSettings={() => setShowSettingsModal(true)}
       />
 
@@ -179,7 +197,10 @@ export const App: React.FC = () => {
         {activeTab === 'inbox' && (
           <InboxTriage
             settings={settings}
-            onFiledSuccess={(msg) => showToast(msg, 'success')}
+            onFiledSuccess={(msg) => {
+              showToast(msg, 'success');
+              refreshCounts();
+            }}
             onError={(err) => showToast(err, 'error')}
             onUpdateBadge={(count) => setInboxCount(count)}
           />
@@ -201,6 +222,7 @@ export const App: React.FC = () => {
             documents={vault}
             onDeleteDoc={handleDeleteDoc}
             onOpenScanner={() => setActiveTab('scan')}
+            onUpdateVaultCount={(count) => setVaultCount(count)}
           />
         )}
 

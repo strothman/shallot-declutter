@@ -7,16 +7,23 @@ import {
   FileSpreadsheet, 
   FileText, 
   Download, 
-  User,
-  ScanLine
+  User, 
+  ScanLine,
+  Edit3,
+  Code,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Save
 } from 'lucide-react';
 import type { ScannedDocument, OutboxCatalogItem } from '../types';
-import { getOutboxCatalog } from '../services/inboxService';
+import { getOutboxCatalog, updateVaultEntry } from '../services/inboxService';
 
 interface VaultHistoryProps {
   documents: ScannedDocument[];
   onDeleteDoc: (id: string) => void;
   onOpenScanner: () => void;
+  onUpdateVaultCount?: (count: number) => void;
 }
 
 interface UnifiedVaultItem {
@@ -35,15 +42,18 @@ interface UnifiedVaultItem {
   filename: string;
   targetFolder: string;
   relativePdfPath?: string;
+  relativeJsonPath?: string;
   driveLink?: string;
   thumbnailUrl?: string;
   tags: string[];
+  rawMetadata?: any;
 }
 
 export const VaultHistory: React.FC<VaultHistoryProps> = ({
   documents,
   onDeleteDoc,
   onOpenScanner,
+  onUpdateVaultCount,
 }) => {
   const [catalogItems, setCatalogItems] = useState<OutboxCatalogItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,81 +61,238 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
   const [selectedPerson, setSelectedPerson] = useState<string>('All');
   const [selectedYear, setSelectedYear] = useState<string>('All');
 
-  // Fetch Outbox/index.json catalog from desktop API
-  useEffect(() => {
-    let isMounted = true;
-    getOutboxCatalog()
-      .then((data) => {
-        if (isMounted && data && Array.isArray(data.catalog)) {
-          setCatalogItems(data.catalog);
+  // Edit Modal State
+  const [editingItem, setEditingItem] = useState<UnifiedVaultItem | null>(null);
+  const [editMode, setEditMode] = useState<'form' | 'json'>('form');
+  const [formState, setFormState] = useState<any>({});
+  const [rawJsonText, setRawJsonText] = useState<string>('');
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+
+  // Fetch Outbox/index.json catalog from desktop API (reconciled against physical files)
+  const refreshCatalog = async () => {
+    try {
+      const data = await getOutboxCatalog();
+      if (data && Array.isArray(data.catalog)) {
+        setCatalogItems(data.catalog);
+        if (onUpdateVaultCount && typeof data.total === 'number') {
+          onUpdateVaultCount(data.total);
         }
-      })
-      .catch((err) => {
-        console.warn('Could not load Outbox catalog:', err);
-      });
-    return () => {
-      isMounted = false;
-    };
+      }
+    } catch (err) {
+      console.warn('Could not load Outbox catalog:', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshCatalog();
   }, []);
 
-  // Merge Outbox/index.json records and local vault documents seamlessly
+  // When physical desktop catalog is available, it is our verified source of truth
   const unifiedItems: UnifiedVaultItem[] = useMemo(() => {
-    const map = new Map<string, UnifiedVaultItem>();
-
-    // 1. Add records from desktop Outbox/index.json
-    for (const item of catalogItems) {
-      const filename = item.relativePdfPath ? item.relativePdfPath.split(/[/\\]/).pop() || '' : '';
-      const key = (item.relativePdfPath || item.id).toLowerCase();
-      map.set(key, {
-        id: item.id,
-        source: 'catalog',
-        documentType: item.documentType || 'Other',
-        category: item.metadata?.category || 'General',
-        issuer: item.issuer || item.metadata?.issuer || 'Unknown Issuer',
-        personOrPatient: item.personOrPatient || item.metadata?.personOrPatient || item.metadata?.patientOrAccount || 'N/A',
-        providerOrDoctor: item.providerOrDoctor || item.metadata?.providerOrDoctor || '',
-        topicOrProcedure: item.topicOrProcedure || item.metadata?.topicOrProcedure || '',
-        referenceNumber: item.referenceNumber || item.metadata?.referenceNumber || '',
-        statementDate: item.statementDate || item.metadata?.statementDate || '',
-        amountDue: item.amountDue || item.metadata?.amountDue || 'N/A',
-        summary: item.metadata?.summary || '',
-        filename: filename || item.metadata?.suggestedFilename || 'Document.pdf',
-        targetFolder: item.relativePdfPath ? item.relativePdfPath.split(/[/\\]/).slice(0, -1).join('/') : item.documentType,
-        relativePdfPath: item.relativePdfPath,
-        thumbnailUrl: item.metadata && (item.metadata as any).thumbnail,
-        tags: item.tags || item.metadata?.tags || [],
+    if (catalogItems.length > 0) {
+      return catalogItems.map((item) => {
+        const filename = item.relativePdfPath ? item.relativePdfPath.split(/[/\\]/).pop() || '' : '';
+        return {
+          id: item.id,
+          source: 'catalog',
+          documentType: item.documentType || 'Other',
+          category: item.metadata?.category || 'General',
+          issuer: item.issuer || item.metadata?.issuer || 'Unknown Issuer',
+          personOrPatient: item.personOrPatient || item.metadata?.personOrPatient || item.metadata?.patientOrAccount || 'N/A',
+          providerOrDoctor: item.providerOrDoctor || item.metadata?.providerOrDoctor || '',
+          topicOrProcedure: item.topicOrProcedure || item.metadata?.topicOrProcedure || '',
+          referenceNumber: item.referenceNumber || item.metadata?.referenceNumber || '',
+          statementDate: item.statementDate || item.metadata?.statementDate || '',
+          amountDue: item.amountDue || item.metadata?.amountDue || 'N/A',
+          summary: item.metadata?.summary || '',
+          filename: filename || item.metadata?.suggestedFilename || 'Document.pdf',
+          targetFolder: item.relativePdfPath ? item.relativePdfPath.split(/[/\\]/).slice(0, -1).join('/') : item.documentType,
+          relativePdfPath: item.relativePdfPath,
+          relativeJsonPath: item.relativeJsonPath,
+          thumbnailUrl: item.metadata && (item.metadata as any).thumbnail,
+          tags: item.tags || item.metadata?.tags || [],
+          rawMetadata: item.metadata || {
+            documentType: item.documentType,
+            issuer: item.issuer,
+            personOrPatient: item.personOrPatient,
+            statementDate: item.statementDate,
+            amountDue: item.amountDue,
+            referenceNumber: item.referenceNumber,
+            providerOrDoctor: item.providerOrDoctor,
+            topicOrProcedure: item.topicOrProcedure,
+            tags: item.tags || [],
+          },
+        };
       });
     }
 
-    // 2. Add local documents from browser vault ledger (if not already present from catalog)
-    for (const doc of documents) {
-      const filename = doc.metadata.suggestedFilename || '';
-      const key = `${doc.metadata.targetFolder}/${filename}`.toLowerCase();
-      if (!map.has(key)) {
-        map.set(key, {
-          id: doc.id,
-          source: 'local',
-          documentType: doc.metadata.documentType || 'Other',
-          category: doc.metadata.category || 'General',
-          issuer: doc.metadata.issuer || 'Unknown Issuer',
-          personOrPatient: doc.metadata.personOrPatient || doc.metadata.patientOrAccount || 'N/A',
-          providerOrDoctor: doc.metadata.providerOrDoctor || '',
-          topicOrProcedure: doc.metadata.topicOrProcedure || '',
-          referenceNumber: doc.metadata.referenceNumber || '',
-          statementDate: doc.metadata.statementDate || '',
-          amountDue: doc.metadata.amountDue || 'N/A',
-          summary: doc.metadata.summary || '',
-          filename: doc.metadata.suggestedFilename || 'Document.pdf',
-          targetFolder: doc.metadata.targetFolder || doc.metadata.documentType,
-          driveLink: doc.driveLink,
-          thumbnailUrl: doc.pages && doc.pages[0] ? doc.pages[0] : undefined,
-          tags: doc.metadata.tags || [],
+    // Fallback if desktop API is not yet loaded or offline: local documents
+    return documents.map((doc) => ({
+      id: doc.id,
+      source: 'local',
+      documentType: doc.metadata.documentType || 'Other',
+      category: doc.metadata.category || 'General',
+      issuer: doc.metadata.issuer || 'Unknown Issuer',
+      personOrPatient: doc.metadata.personOrPatient || doc.metadata.patientOrAccount || 'N/A',
+      providerOrDoctor: doc.metadata.providerOrDoctor || '',
+      topicOrProcedure: doc.metadata.topicOrProcedure || '',
+      referenceNumber: doc.metadata.referenceNumber || '',
+      statementDate: doc.metadata.statementDate || '',
+      amountDue: doc.metadata.amountDue || 'N/A',
+      summary: doc.metadata.summary || '',
+      filename: doc.metadata.suggestedFilename || 'Document.pdf',
+      targetFolder: doc.metadata.targetFolder || doc.metadata.documentType,
+      driveLink: doc.driveLink,
+      thumbnailUrl: doc.pages && doc.pages[0] ? doc.pages[0] : undefined,
+      tags: doc.metadata.tags || [],
+      rawMetadata: doc.metadata,
+    }));
+  }, [catalogItems, documents]);
+
+  // Edit Handlers
+  const handleStartEdit = (item: UnifiedVaultItem) => {
+    setEditingItem(item);
+    setEditMode('form');
+    const initialForm = {
+      documentType: item.documentType || '',
+      category: item.category || 'General',
+      issuer: item.issuer || '',
+      personOrPatient: item.personOrPatient === 'N/A' ? '' : item.personOrPatient,
+      statementDate: item.statementDate || '',
+      referenceNumber: item.referenceNumber || '',
+      providerOrDoctor: item.providerOrDoctor || '',
+      topicOrProcedure: item.topicOrProcedure || '',
+      amountDue: item.amountDue === 'N/A' ? '' : item.amountDue,
+      summary: item.summary || '',
+      tags: Array.isArray(item.tags) ? item.tags.join(', ') : '',
+    };
+    setFormState(initialForm);
+    const metaToFormat = item.rawMetadata || initialForm;
+    setRawJsonText(JSON.stringify(metaToFormat, null, 2));
+    setJsonError(null);
+    setSaveSuccessMsg(null);
+  };
+
+  const handleSwitchMode = (mode: 'form' | 'json') => {
+    if (mode === 'json' && editMode === 'form') {
+      const tagsArray = typeof formState.tags === 'string'
+        ? formState.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+        : (formState.tags || []);
+      const merged = {
+        ...(editingItem?.rawMetadata || {}),
+        ...formState,
+        tags: tagsArray,
+      };
+      setRawJsonText(JSON.stringify(merged, null, 2));
+      setJsonError(null);
+      setEditMode('json');
+    } else if (mode === 'form' && editMode === 'json') {
+      try {
+        const parsed = JSON.parse(rawJsonText);
+        setFormState({
+          documentType: parsed.documentType || '',
+          category: parsed.category || 'General',
+          issuer: parsed.issuer || '',
+          personOrPatient: parsed.personOrPatient || parsed.patientOrAccount || '',
+          statementDate: parsed.statementDate || '',
+          referenceNumber: parsed.referenceNumber || '',
+          providerOrDoctor: parsed.providerOrDoctor || '',
+          topicOrProcedure: parsed.topicOrProcedure || '',
+          amountDue: parsed.amountDue || '',
+          summary: parsed.summary || '',
+          tags: Array.isArray(parsed.tags) ? parsed.tags.join(', ') : (parsed.tags || ''),
         });
+        setJsonError(null);
+        setEditMode('form');
+      } catch (err: any) {
+        setJsonError(`Fix JSON syntax error before switching views: ${err.message}`);
       }
     }
+  };
 
-    return Array.from(map.values());
-  }, [catalogItems, documents]);
+  const handlePrettifyJson = () => {
+    try {
+      const parsed = JSON.parse(rawJsonText);
+      setRawJsonText(JSON.stringify(parsed, null, 2));
+      setJsonError(null);
+    } catch (e: any) {
+      setJsonError(`JSON Syntax Error: ${e.message}`);
+    }
+  };
+
+  const handleJsonChange = (val: string) => {
+    setRawJsonText(val);
+    try {
+      JSON.parse(val);
+      setJsonError(null);
+    } catch (err: any) {
+      setJsonError(`JSON Syntax Error: ${err.message}`);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingItem) return;
+    setIsSavingEdit(true);
+    setJsonError(null);
+
+    try {
+      let updatedMetadata: any;
+      if (editMode === 'json') {
+        try {
+          updatedMetadata = JSON.parse(rawJsonText);
+        } catch (e: any) {
+          setJsonError(`Invalid JSON: ${e.message}`);
+          setIsSavingEdit(false);
+          return;
+        }
+      } else {
+        const tagsArray = typeof formState.tags === 'string'
+          ? formState.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+          : (formState.tags || []);
+
+        updatedMetadata = {
+          ...(editingItem.rawMetadata || {}),
+          documentType: formState.documentType,
+          category: formState.category,
+          issuer: formState.issuer,
+          personOrPatient: formState.personOrPatient,
+          patientOrAccount: formState.personOrPatient,
+          statementDate: formState.statementDate,
+          referenceNumber: formState.referenceNumber,
+          providerOrDoctor: formState.providerOrDoctor,
+          topicOrProcedure: formState.topicOrProcedure,
+          amountDue: formState.amountDue || '$0.00',
+          summary: formState.summary,
+          tags: tagsArray,
+        };
+      }
+
+      if (editingItem.relativeJsonPath) {
+        const res = await updateVaultEntry({
+          relativeJsonPath: editingItem.relativeJsonPath,
+          updatedMetadata,
+        });
+        if (res && Array.isArray(res.catalog)) {
+          setCatalogItems(res.catalog);
+          if (onUpdateVaultCount) {
+            onUpdateVaultCount(res.total);
+          }
+        }
+      }
+
+      setSaveSuccessMsg('Document metadata saved to disk & catalog refreshed!');
+      setTimeout(() => {
+        setEditingItem(null);
+        setSaveSuccessMsg(null);
+      }, 700);
+    } catch (err: any) {
+      setJsonError(`Save failed: ${err.message}`);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
 
   // Unique lists for filtering
   const availablePeople = useMemo(() => {
@@ -643,6 +810,16 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
                   )}
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {/* Edit Metadata & JSON Button */}
+                    <button
+                      onClick={() => handleStartEdit(item)}
+                      className="btn-icon"
+                      style={{ width: '30px', height: '30px' }}
+                      title="Edit Document Metadata & Sidecar JSON"
+                    >
+                      <Edit3 size={14} color="var(--accent-primary)" />
+                    </button>
+
                     {/* Direct Outbox PDF Opener */}
                     {item.relativePdfPath ? (
                       <a
@@ -688,6 +865,396 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Edit Entry Modal Overlay */}
+      {editingItem && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+          }}
+          onClick={() => !isSavingEdit && setEditingItem(null)}
+        >
+          <div
+            className="glass-panel"
+            style={{
+              width: '100%',
+              maxWidth: '720px',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              borderRadius: '16px',
+              border: '1px solid var(--border-glass-bright)',
+              background: 'var(--bg-surface)',
+              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.6)',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '16px 20px',
+                borderBottom: '1px solid var(--border-glass)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: 'rgba(212, 130, 68, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Edit3 size={18} color="var(--accent-primary)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Edit Vault Document Entry
+                  </h3>
+                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, fontFamily: 'var(--font-mono)' }}>
+                    {editingItem.relativeJsonPath || editingItem.filename}
+                  </p>
+                </div>
+              </div>
+
+              {/* View Mode Switcher Pills */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-surface-elevated)', padding: '4px', borderRadius: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchMode('form')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    background: editMode === 'form' ? 'var(--accent-primary)' : 'transparent',
+                    color: editMode === 'form' ? '#FFFFFF' : 'var(--text-secondary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <FileText size={13} />
+                  <span>Field Form</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchMode('json')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    background: editMode === 'json' ? 'var(--accent-primary)' : 'transparent',
+                    color: editMode === 'json' ? '#FFFFFF' : 'var(--text-secondary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Code size={13} />
+                  <span>Raw JSON</span>
+                </button>
+              </div>
+
+              <button
+                onClick={() => !isSavingEdit && setEditingItem(null)}
+                className="btn-icon"
+                style={{ width: '32px', height: '32px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {saveSuccessMsg && (
+                <div
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    color: 'var(--accent-emerald)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <CheckCircle2 size={16} />
+                  <span>{saveSuccessMsg}</span>
+                </div>
+              )}
+
+              {jsonError && (
+                <div
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#EF4444',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <AlertCircle size={16} />
+                  <span>{jsonError}</span>
+                </div>
+              )}
+
+              {editMode === 'form' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      DOCUMENT TYPE
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={formState.documentType || ''}
+                      onChange={(e) => setFormState({ ...formState, documentType: e.target.value })}
+                      placeholder="e.g. EOB, Medical Bill, MRI Report"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      CATEGORY
+                    </label>
+                    <select
+                      className="input-field"
+                      value={formState.category || 'General'}
+                      onChange={(e) => setFormState({ ...formState, category: e.target.value })}
+                    >
+                      <option value="Medical">Medical</option>
+                      <option value="Insurance">Insurance</option>
+                      <option value="Bills & Utilities">Bills & Utilities</option>
+                      <option value="Taxes">Taxes</option>
+                      <option value="Legal">Legal</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      ISSUER / FACILITY / COMPANY
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={formState.issuer || ''}
+                      onChange={(e) => setFormState({ ...formState, issuer: e.target.value })}
+                      placeholder="e.g. Aetna, Diagnostic Imaging, City Water"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      PERSON / PATIENT / ACCOUNT HOLDER
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={formState.personOrPatient || ''}
+                      onChange={(e) => setFormState({ ...formState, personOrPatient: e.target.value })}
+                      placeholder="e.g. Jane Doe"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      STATEMENT DATE (YYYY-MM-DD)
+                    </label>
+                    <input
+                      type="date"
+                      className="input-field"
+                      value={formState.statementDate || ''}
+                      onChange={(e) => setFormState({ ...formState, statementDate: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      AMOUNT DUE
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={formState.amountDue || ''}
+                      onChange={(e) => setFormState({ ...formState, amountDue: e.target.value })}
+                      placeholder="e.g. $0.00 or $125.50"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      REFERENCE / MRN / CLAIM #
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={formState.referenceNumber || ''}
+                      onChange={(e) => setFormState({ ...formState, referenceNumber: e.target.value })}
+                      placeholder="e.g. MRN12345 or Claim #987654"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      PROVIDER / ORDERING DOCTOR
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={formState.providerOrDoctor || ''}
+                      onChange={(e) => setFormState({ ...formState, providerOrDoctor: e.target.value })}
+                      placeholder="e.g. Dr. Jane Smith, MD"
+                    />
+                  </div>
+
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      TOPIC / PROCEDURE
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={formState.topicOrProcedure || ''}
+                      onChange={(e) => setFormState({ ...formState, topicOrProcedure: e.target.value })}
+                      placeholder="e.g. Lumbar Spine MRI Without Contrast"
+                    />
+                  </div>
+
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      SUMMARY & CLINICAL / BILLING NOTES
+                    </label>
+                    <textarea
+                      className="input-field"
+                      rows={3}
+                      style={{ height: 'auto', resize: 'vertical' }}
+                      value={formState.summary || ''}
+                      onChange={(e) => setFormState({ ...formState, summary: e.target.value })}
+                      placeholder="Extracted key information or user notes..."
+                    />
+                  </div>
+
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      TAGS (COMMA SEPARATED)
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={formState.tags || ''}
+                      onChange={(e) => setFormState({ ...formState, tags: e.target.value })}
+                      placeholder="e.g. medical, mri, lumbar, spine, radiology"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      Directly edit the JSON sidecar stored on disk in your Outbox folder:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handlePrettifyJson}
+                      className="btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: '11px' }}
+                    >
+                      Format / Prettify
+                    </button>
+                  </div>
+                  <textarea
+                    className="input-field"
+                    rows={18}
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '12px',
+                      height: '360px',
+                      resize: 'vertical',
+                      lineHeight: 1.5,
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      whiteSpace: 'pre',
+                    }}
+                    value={rawJsonText}
+                    onChange={(e) => handleJsonChange(e.target.value)}
+                    spellCheck={false}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: '14px 20px',
+                borderTop: '1px solid var(--border-glass)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'var(--bg-surface-elevated)',
+              }}
+            >
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Changes will immediately update the sidecar file and rebuild the vault index.
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => !isSavingEdit && setEditingItem(null)}
+                  disabled={isSavingEdit}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleSaveEdit}
+                  disabled={isSavingEdit || Boolean(jsonError && editMode === 'json')}
+                >
+                  <Save size={14} />
+                  <span>{isSavingEdit ? 'Saving...' : 'Save Changes'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

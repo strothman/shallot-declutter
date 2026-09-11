@@ -29,6 +29,7 @@ export interface InboxStatus {
   outboxPath: string;
   archivePath?: string;
   inboxCount: number;
+  vaultCount?: number;
 }
 
 export interface ExtractedDocData {
