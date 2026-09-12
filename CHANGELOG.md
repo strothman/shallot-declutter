@@ -44,6 +44,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Ongoing refinements to mobile camera auto-focus handling.
 - Planned addition of offline OCR fallback.
 
+### [v0.2.5] - 2026-09-12 — Fullscreen Document Preview & Interactive Zoom in Triage Studio
+- ✨ **Added**: **`Preview & Zoom` Toolbar Button**: Added a dedicated high-visibility action button directly in the Triage Studio page manipulation toolbar to inspect paperwork up close before approving and filing.
+- ✨ **Added**: **In-Window Floating Zoom Controls**: Added a floating translucent zoom bar in the top-right corner of the viewer with **Zoom In** (`+`), **Zoom Out** (`-`), **Reset** (`100%`), and **Expand** buttons (supporting smooth zoom scaling from `50%` up to `350%`).
+- ✨ **Added**: **1-Click Image Zoom Toggle**: Clicking directly on the scanned page instantly toggles between 100% overview and 175% detailed zoom with auto-scrolling pan support.
+- ✨ **Added**: **Fullscreen High-Resolution Lightbox**: Opens a dedicated full-bleed inspection modal with dark glass backdrop, multi-level zoom controls, previous/next page navigation arrows, keyboard shortcuts (`ESC` to close, `Left`/`Right` arrow keys to flip pages), and an **Open in Tab** button to view the uncompressed raw image or PDF directly in a native browser tab.
+
+---
+
 ### [v0.2.4] - 2026-09-12 — Social Security & SSA-1099 Extraction & Custom Document Types
 - ✨ **Added**: **Social Security & Form SSA-1099 Deep Extraction**: Added first-class multimodal extraction rules for Social Security paperwork (Form SSA-1099, SSA-1042S, Notice 703, and Benefit Verification letters). Accurately distinguishes Box 1 beneficiary (`Logan C Strothman`) from Box 7 representative payee / address (`Richard Strothman for Logan C Strothman`), extracts SSA Claim Number (`Box 8`), SSN last 4 (`Box 2`), and isolates all IRS tax reporting totals (`Box 3` benefits paid, `Box 4` repayments, `Box 5` net benefits, and `Box 6` federal tax withholding).
 - ✨ **Added**: **Standard 'Social Security Statement' Document Type & Category**: Automatically routes filed SSA paperwork into `Outbox\Social Security Statement\YYYY\MM\` with rich metadata sidecars and clean filenames. Added `Social Security` to canonical category resolution and vault filter ribbons.

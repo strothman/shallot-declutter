@@ -1,7 +1,7 @@
 # 📊 Shallot Declutter — Project State & Health
 
 > **Last Updated:** September 12, 2026  
-> **Current Version:** `v0.2.4` (Dedicated PC Desktop Utility)  
+> **Current Version:** `v0.2.5` (Dedicated PC Desktop Utility)  
 > **Classification:** **Personal Data Entry Workstation**  
 > **Status:** 🟢 Healthy & Ready to Run
 
@@ -62,6 +62,8 @@ Shallot Declutter is classified as a **Personal Data Entry Desktop Utility**. It
 | **Client-Side Pagination & Scale Guard** | 🟢 Fully Working | High-performance vault pagination (12, 24, 48, or All items per page) with jump navigation, range counters, smooth scroll, and zero DOM bloat even with thousands of documents. |
 | **Social Security & Form SSA-1099 Extraction** | 🟢 Fully Working | Deep extraction for Social Security Benefit Statements (Form SSA-1099/1042S/Notice 703): isolates Box 1 beneficiary vs Box 7 representative payee, Box 8 claim number, SSN last 4, Box 3/4/5/6 benefit figures, and auto-routes to `Outbox\Social Security Statement\YYYY\MM\`. |
 | **Custom Document Types & Dynamic Taxonomy** | 🟢 Fully Working | Instant `+ Custom Type` creator right inside the Triage screen; creates new destination folders with Windows path sanitization and automatically persists custom types in settings across sessions. |
+| **Fullscreen Document Preview & Interactive Zoom** | 🟢 Fully Working | One-click `Preview & Zoom` toolbar button, in-window floating zoom widget (50% to 350%), click-to-zoom toggling, full-bleed inspection lightbox with arrow navigation, and direct "Open in Tab" viewing. |
+
 
 
 

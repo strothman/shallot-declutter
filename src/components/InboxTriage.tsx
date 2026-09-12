@@ -36,6 +36,10 @@ import {
   Award,
   Percent,
   Plus,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  ExternalLink,
 } from 'lucide-react';
 import type { InboxItem, InboxStatus, ExtractedDocData, AppSettings, ScannedDocument } from '../types';
 import {
@@ -100,6 +104,17 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
   const [isAddingCustomDocType, setIsAddingCustomDocType] = useState<boolean>(false);
   const [newCustomDocTypeInput, setNewCustomDocTypeInput] = useState<string>('');
 
+  // Zoom & Full Preview Lightbox State
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
+  const [lightboxZoom, setLightboxZoom] = useState<number>(1);
+
+  // Reset zoom when active page changes
+  useEffect(() => {
+    setZoomLevel(1);
+    setLightboxZoom(1);
+  }, [activePageIdx]);
+
   // Real-time Loading & Progress State
   const [triageProgress, setTriageProgress] = useState<{
     isOpen: boolean;
@@ -114,6 +129,26 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
     metadata: ExtractedDocData;
     fileItems?: InboxItem[];
   } | null>(null);
+
+  // Keyboard navigation for Lightbox
+  useEffect(() => {
+    if (!isLightboxOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsLightboxOpen(false);
+      } else if (e.key === 'ArrowLeft') {
+        if (triageBundle && activePageIdx > 0) {
+          setActivePageIdx((idx) => idx - 1);
+        }
+      } else if (e.key === 'ArrowRight') {
+        if (triageBundle && activePageIdx < (triageBundle.pages?.length || 1) - 1) {
+          setActivePageIdx((idx) => idx + 1);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLightboxOpen, activePageIdx, triageBundle]);
 
   // Available document types combining defaults + user custom document types
   const availableDocTypes = useMemo(() => {
@@ -1629,6 +1664,30 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
 
                   {/* Page Manipulation Toolbar */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {/* Preview & Zoom Button */}
+                    <button
+                      type="button"
+                      onClick={() => setIsLightboxOpen(true)}
+                      title="Open Fullscreen Document Preview & Inspection Lightbox"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(212, 130, 68, 0.4)',
+                        background: 'rgba(212, 130, 68, 0.15)',
+                        color: 'var(--accent-primary)',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <Maximize2 size={13} />
+                      <span>Preview & Zoom</span>
+                    </button>
+
                     {/* Rotate 90° Clockwise */}
                     <button
                       onClick={() => rotateCurrentPage(activePageIdx)}
@@ -1843,13 +1902,123 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
                     background: '#0B0F19',
                     borderRadius: '16px',
                     border: '1px solid var(--border-glass)',
-                    overflow: 'hidden',
+                    overflow: zoomLevel > 1 ? 'auto' : 'hidden',
                     display: 'flex',
-                    alignItems: 'center',
+                    alignItems: zoomLevel > 1 ? 'flex-start' : 'center',
                     justifyContent: 'center',
                     position: 'relative',
                   }}
                 >
+                  {/* Floating In-Window Zoom & Lightbox Controls */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '12px',
+                      right: '12px',
+                      zIndex: 15,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      background: 'rgba(15, 23, 42, 0.88)',
+                      backdropFilter: 'blur(10px)',
+                      padding: '4px 8px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-glass-bright)',
+                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6)',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setZoomLevel((z) => Math.max(0.5, +(z - 0.25).toFixed(2)));
+                      }}
+                      title="Zoom Out (-)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        borderRadius: '4px',
+                      }}
+                    >
+                      <ZoomOut size={13} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setZoomLevel(1);
+                      }}
+                      title="Reset Zoom to 100%"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: zoomLevel !== 1 ? 'var(--accent-primary)' : 'var(--text-muted)',
+                        cursor: 'pointer',
+                        padding: '2px 4px',
+                        minWidth: '36px',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {Math.round(zoomLevel * 100)}%
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setZoomLevel((z) => Math.min(3.5, +(z + 0.25).toFixed(2)));
+                      }}
+                      title="Zoom In (+)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        borderRadius: '4px',
+                      }}
+                    >
+                      <ZoomIn size={13} />
+                    </button>
+
+                    <div style={{ width: '1px', height: '14px', background: 'var(--border-glass)', margin: '0 2px' }} />
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsLightboxOpen(true);
+                      }}
+                      title="Open Fullscreen Lightbox Preview"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        background: 'rgba(212, 130, 68, 0.15)',
+                        border: '1px solid rgba(212, 130, 68, 0.35)',
+                        color: 'var(--accent-primary)',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        borderRadius: '5px',
+                        padding: '3px 7px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Maximize2 size={12} />
+                      <span>Expand</span>
+                    </button>
+                  </div>
+
                   {triageBundle.fileNames[activePageIdx]?.toLowerCase().endsWith('.pdf') ? (
                     <iframe
                       src={`/api/inbox/file?name=${encodeURIComponent(triageBundle.fileNames[activePageIdx])}`}
@@ -1857,16 +2026,39 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
                       style={{ width: '100%', height: '100%', border: 'none' }}
                     />
                   ) : (
-                    <img
-                      src={triageBundle.pages[activePageIdx]}
-                      alt="Scanned page"
+                    <div
                       style={{
-                        maxWidth: '100%',
-                        maxHeight: '100%',
-                        objectFit: 'contain',
-                        borderRadius: '8px',
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: zoomLevel > 1 ? '32px' : '0',
                       }}
-                    />
+                    >
+                      <img
+                        src={triageBundle.pages[activePageIdx]}
+                        alt="Scanned page"
+                        style={{
+                          maxWidth: zoomLevel <= 1 ? '100%' : 'none',
+                          maxHeight: zoomLevel <= 1 ? '100%' : 'none',
+                          width: zoomLevel > 1 ? `${zoomLevel * 100}%` : 'auto',
+                          objectFit: 'contain',
+                          borderRadius: '8px',
+                          transition: 'width 0.15s ease',
+                          cursor: zoomLevel > 1 ? 'zoom-out' : 'zoom-in',
+                          boxShadow: zoomLevel > 1 ? '0 12px 36px rgba(0, 0, 0, 0.8)' : 'none',
+                        }}
+                        onClick={() => {
+                          if (zoomLevel === 1) {
+                            setZoomLevel(1.75);
+                          } else {
+                            setZoomLevel(1);
+                          }
+                        }}
+                        title="Click image to toggle zoom (100% ⇄ 175%)"
+                      />
+                    </div>
                   )}
                 </div>
 
@@ -2735,6 +2927,310 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN DOCUMENT PREVIEW & INSPECTION LIGHTBOX */}
+      {isLightboxOpen && triageBundle && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            background: 'rgba(5, 8, 15, 0.94)',
+            backdropFilter: 'blur(16px)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+          onClick={() => setIsLightboxOpen(false)}
+        >
+          {/* Top Header Bar */}
+          <div
+            style={{
+              padding: '14px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: '1px solid var(--border-glass)',
+              background: 'rgba(15, 23, 42, 0.7)',
+              zIndex: 10,
+              gap: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Left: Page Index & File Details */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                Page {activePageIdx + 1} of {triageBundle.pages.length}
+              </span>
+              <span
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--text-secondary)',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  padding: '3px 10px',
+                  borderRadius: '6px',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {triageBundle.fileNames[activePageIdx]}
+              </span>
+            </div>
+
+            {/* Center: Zoom Controls */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'rgba(0, 0, 0, 0.4)',
+                padding: '4px 12px',
+                borderRadius: '10px',
+                border: '1px solid var(--border-glass)',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setLightboxZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
+                title="Zoom Out (-)"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <ZoomOut size={16} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setLightboxZoom(1)}
+                title="Reset to 100%"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: lightboxZoom !== 1 ? 'var(--accent-primary)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  minWidth: '45px',
+                  textAlign: 'center',
+                }}
+              >
+                {Math.round(lightboxZoom * 100)}%
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setLightboxZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))}
+                title="Zoom In (+)"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <ZoomIn size={16} />
+              </button>
+            </div>
+
+            {/* Right: Open in New Tab & Close Button */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <a
+                href={`/api/inbox/file?name=${encodeURIComponent(triageBundle.fileNames[activePageIdx])}`}
+                target="_blank"
+                rel="noreferrer"
+                title="Open raw image file in new browser tab"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  background: 'rgba(56, 189, 248, 0.12)',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  color: '#38BDF8',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                }}
+              >
+                <ExternalLink size={14} />
+                <span>Open in Tab</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setIsLightboxOpen(false)}
+                title="Close Preview (Esc)"
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid var(--border-glass)',
+                  color: 'var(--text-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* Main Inspection Canvas */}
+          <div
+            style={{
+              flex: 1,
+              position: 'relative',
+              overflow: 'auto',
+              display: 'flex',
+              alignItems: lightboxZoom > 1 ? 'flex-start' : 'center',
+              justifyContent: 'center',
+              padding: '24px',
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setIsLightboxOpen(false);
+              }
+            }}
+          >
+            {/* Previous Page Arrow (Left) */}
+            {triageBundle.pages.length > 1 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActivePageIdx((idx) => Math.max(0, idx - 1));
+                }}
+                disabled={activePageIdx === 0}
+                title="Previous Page (◀)"
+                style={{
+                  position: 'fixed',
+                  left: '24px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  zIndex: 20,
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  background: 'rgba(15, 23, 42, 0.8)',
+                  border: '1px solid var(--border-glass-bright)',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: activePageIdx === 0 ? 'not-allowed' : 'pointer',
+                  opacity: activePageIdx === 0 ? 0.3 : 1,
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6)',
+                  backdropFilter: 'blur(8px)',
+                }}
+              >
+                <ChevronLeft size={24} />
+              </button>
+            )}
+
+            {/* Document Image */}
+            {triageBundle.fileNames[activePageIdx]?.toLowerCase().endsWith('.pdf') ? (
+              <iframe
+                src={`/api/inbox/file?name=${encodeURIComponent(triageBundle.fileNames[activePageIdx])}`}
+                title="PDF Full Preview"
+                style={{ width: '90vw', height: '85vh', border: 'none', borderRadius: '12px' }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <img
+                src={triageBundle.pages[activePageIdx]}
+                alt="Document Preview"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxZoom((z) => (z === 1 ? 1.75 : 1));
+                }}
+                style={{
+                  maxWidth: lightboxZoom <= 1 ? '92vw' : 'none',
+                  maxHeight: lightboxZoom <= 1 ? '84vh' : 'none',
+                  width: lightboxZoom > 1 ? `${lightboxZoom * 100}%` : 'auto',
+                  objectFit: 'contain',
+                  borderRadius: '10px',
+                  boxShadow: '0 24px 70px rgba(0, 0, 0, 0.85)',
+                  cursor: lightboxZoom > 1 ? 'zoom-out' : 'zoom-in',
+                  transition: 'width 0.15s ease',
+                  userSelect: 'none',
+                }}
+                title="Click to toggle zoom (100% ⇄ 175%)"
+              />
+            )}
+
+            {/* Next Page Arrow (Right) */}
+            {triageBundle.pages.length > 1 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActivePageIdx((idx) => Math.min(triageBundle.pages.length - 1, idx + 1));
+                }}
+                disabled={activePageIdx === triageBundle.pages.length - 1}
+                title="Next Page (▶)"
+                style={{
+                  position: 'fixed',
+                  right: '24px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  zIndex: 20,
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  background: 'rgba(15, 23, 42, 0.8)',
+                  border: '1px solid var(--border-glass-bright)',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: activePageIdx === triageBundle.pages.length - 1 ? 'not-allowed' : 'pointer',
+                  opacity: activePageIdx === triageBundle.pages.length - 1 ? 0.3 : 1,
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6)',
+                  backdropFilter: 'blur(8px)',
+                }}
+              >
+                <ChevronRight size={24} />
+              </button>
+            )}
+          </div>
+
+          {/* Bottom Navigation Hint Bar */}
+          <div
+            style={{
+              padding: '10px 24px',
+              textAlign: 'center',
+              fontSize: '11px',
+              color: 'var(--text-muted)',
+              borderTop: '1px solid var(--border-glass)',
+              background: 'rgba(15, 23, 42, 0.7)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span>Click image to toggle zoom (100% ⇄ 175%)</span>
+            <span>•</span>
+            <span>Use Left / Right arrow keys to switch pages</span>
+            <span>•</span>
+            <span>Press ESC or click background to close</span>
           </div>
         </div>
       )}
