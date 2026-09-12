@@ -1,7 +1,7 @@
 # 📊 Shallot Declutter — Project State & Health
 
-> **Last Updated:** September 11, 2026  
-> **Current Version:** `v0.2.0` (Dedicated PC Desktop Utility)  
+> **Last Updated:** September 12, 2026  
+> **Current Version:** `v0.2.1` (Dedicated PC Desktop Utility)  
 > **Classification:** **Personal Data Entry Workstation**  
 > **Status:** 🟢 Healthy & Ready to Run
 
@@ -21,6 +21,7 @@ Shallot Declutter is classified as a **Personal Data Entry Desktop Utility**. It
    - **Financials & Timing**: Statement date, due date, amount due, patient responsibility
    - **Clinical & Diagnostic Notes**: Bulleted key findings, impressions, and diagnoses
    - **Search Metadata**: Auto-generated tags and standardized taxonomy
+   - **Retail & Receipt Itemization**: Store address, item-level lines, discounts/coupons, food/beverage tax flags, fuel & loyalty rewards
 3. **Dual-Artifact Storage**: For every processed document, persist:
    - A clean, standardized multi-page PDF (`Outbox\<TYPE>\<YYYY>\<MM>\<filename>.pdf`)
    - A self-describing JSON metadata sidecar (`Outbox\<TYPE>\<YYYY>\<MM>\<filename>.json`)
@@ -54,6 +55,8 @@ Shallot Declutter is classified as a **Personal Data Entry Desktop Utility**. It
 | **In-Vault Entry & Raw JSON Editor** | 🟢 Fully Working | Modal editor on every vault card supporting both structured form fields and raw JSON editing with disk persistence. |
 | **Typography Antialiasing & Text Smoothing** | 🟢 Fully Working | Sharp, clean typography across all controls and select dropdowns with zero disjointed glyph collisions. |
 | **Hardened File Reliability & Audit Trail** | 🟢 Fully Working | Automated empty ghost folder pruning, atomic temp-file JSON writes, orphan PDF auto-cataloging, safe cross-device file moves, and immutable audit logging in `Archive/audit_log.jsonl`. |
+| **Itemized Receipt & Money App Node Retention** | 🟢 Fully Working | Extracts complete itemized grocery & retail receipt basket lines (item names, unit prices, discounts/Mega Events, food/beverage tax flags, savings %, fuel points) directly into JSON sidecars ready for Money app ingestion. |
+| **Automated Recipe Detection & Classification** | 🟢 Fully Working | Auto-classifies cooking/baking recipes into 'Recipe' docType and 'Recipes & Cooking' category, routing files to `Outbox\Recipe\YYYY\MM\` with key ingredients, oven temperatures, and culinary steps. |
 
 
 ---

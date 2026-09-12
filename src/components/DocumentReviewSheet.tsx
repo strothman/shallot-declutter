@@ -32,6 +32,7 @@ const DOC_TYPES: DocType[] = [
   'Utility Bill',
   'Tax Document',
   'Receipt',
+  'Recipe',
   'Prescription',
   'Insurance Policy',
   'Lab Result',

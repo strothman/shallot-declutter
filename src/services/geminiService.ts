@@ -1,26 +1,103 @@
 import type { ExtractedDocData } from '../types';
 
-const PROMPT_SYSTEM = `You are an expert document organizer and data extraction system for physical and digital paperwork, medical records, radiology/imaging reports, hospital bills, insurance EOBs, utilities, taxes, and legal documents.
+const PROMPT_SYSTEM = `You are an expert document organizer and data extraction system for physical and digital paperwork, medical records, radiology/imaging reports, hospital bills, insurance EOBs, utilities, taxes, legal documents, and retail/grocery receipts.
 Examine the attached document and extract comprehensive structured metadata into clean JSON.
 
 Output MUST be a valid JSON object matching this exact schema:
 {
-  "documentType": "MRI Report" | "Medical Record" | "Lab Result" | "Medical Bill" | "EOB" | "Water Bill" | "Electric Bill" | "Utility Bill" | "Tax Document" | "Receipt" | "Prescription" | "Insurance Policy" | "Legal Notice" | "Other",
-  "category": "Medical" | "Bills & Utilities" | "Insurance" | "Taxes" | "Legal" | "Personal",
-  "issuer": "Clinic, hospital, provider, utility, vendor or agency name (e.g. TJ Samson Community Hospital)",
-  "personOrPatient": "Full name of patient, account holder, customer, or taxpayer (e.g. Jamie Lynn Scelso)",
-  "statementDate": "YYYY-MM-DD (Date of service, exam/study date, or statement date)",
+  "documentType": "MRI Report" | "Medical Record" | "Lab Result" | "Medical Bill" | "EOB" | "Water Bill" | "Electric Bill" | "Utility Bill" | "Tax Document" | "Receipt" | "Recipe" | "Prescription" | "Insurance Policy" | "Legal Notice" | "Other",
+  "category": "Medical" | "Bills & Utilities" | "Insurance" | "Taxes" | "Legal" | "Personal" | "Recipes & Cooking",
+  "issuer": "Clinic, hospital, provider, utility, vendor, store, or cookbook/website name (e.g. TJ Samson Community Hospital, Kroger, or Greek Gateway)",
+  "personOrPatient": "Full name of patient, account holder, customer, or loyalty card (e.g. Jamie Lynn Scelso or Kroger Plus *3756)",
+  "statementDate": "YYYY-MM-DD (Date of service, exam/study date, statement date, or purchase date)",
   "dueDate": "YYYY-MM-DD (Due date if this is an unpaid bill, otherwise 'N/A')",
-  "referenceNumber": "MRN, Accession #, Account #, Claim #, or Invoice # (e.g. MRN: 7054372, Accession: 24-MR-26-0004752)",
-  "providerOrDoctor": "Ordering physician, doctor, specialist, or attending provider (e.g. Jeremy Brown, MD)",
-  "topicOrProcedure": "Specific procedure, exam, or bill subject (e.g. MRI Spine Lumbar w/o Contrast)",
-  "amountDue": "Balance due or patient responsibility (e.g. '$0.00' or '$124.50'), or 'N/A'",
+  "referenceNumber": "MRN, Accession #, Account #, Claim #, Invoice #, or unique receipt survey barcode / Entry ID (e.g. MRN: 7054372 or Entry ID: 024-802-98-785-502-600)",
+  "providerOrDoctor": "Ordering physician, doctor, specialist, or attending provider (e.g. Jeremy Brown, MD), or 'N/A'",
+  "topicOrProcedure": "Specific procedure, exam, bill subject, or shopping category (e.g. MRI Spine Lumbar w/o Contrast or Groceries)",
+  "amountDue": "Balance due, patient responsibility, or total purchase balance paid (e.g. '$30.38' or '$0.00')",
   "summary": "Concise 1-sentence plain-English summary of the document contents and key findings",
-  "keyFindings": ["Key finding, diagnosis, or line item 1", "Key finding 2"],
-  "suggestedFilename": "Standardized filename without spaces using format YYYY-MM-DD_[LastName-FirstName]_[Type]_[Topic].pdf (e.g. 2026-08-30_Scelso-Jamie_MRI-Spine_TJSamsonHospital.pdf)",
-  "targetFolder": "Format: [documentType]\\\\[YYYY]\\\\[MM] (e.g. MRI Report\\\\2026\\\\08)",
-  "tags": ["Tag1", "Tag2", "Tag3", "Tag4"]
+  "keyFindings": ["Key finding, diagnosis, or transaction highlight 1", "Highlight 2"],
+  "suggestedFilename": "Standardized filename without spaces using format YYYY-MM-DD_[LastName-FirstName_or_Store]_[Type]_[Topic].pdf (e.g. 2026-09-12_Kroger_Receipt_Groceries.pdf)",
+  "targetFolder": "Format: [documentType]\\\\[YYYY]\\\\[MM] (e.g. Receipt\\\\2026\\\\09)",
+  "tags": ["Tag1", "Tag2", "Tag3", "Tag4"],
+
+  "receiptDetails": {
+    "store": {
+      "name": "Store name (e.g. Kroger)",
+      "storeNumber": "Store or division # if present",
+      "address": "Store street address if printed (e.g. 4915 Dixie Highway)",
+      "phone": "Store phone number if printed (e.g. (502)448-8215)",
+      "registerNumber": "Terminal or register lane # (e.g. CHEC 502)"
+    },
+    "transaction": {
+      "time": "Transaction time in HH:MM or HH:MM AM/PM format (e.g. 16:06 or 04:06PM)",
+      "paymentMethod": "Payment type and masked card (e.g. US DEBIT *1874)",
+      "cardLast4": "Last 4 digits of payment card (e.g. 1874)",
+      "authCode": "Approval, reference, or auth # (e.g. 050704)",
+      "aid": "EMV Application ID if present",
+      "tc": "EMV Transaction Certificate if present",
+      "itemsSold": 15
+    },
+    "financials": {
+      "subtotal": 29.96,
+      "tax": 0.42,
+      "total": 30.38,
+      "totalSavings": 9.49,
+      "savingsPercentage": "24%",
+      "coupons": 9.49,
+      "cashback": 0.00,
+      "annualSavingsYTD": 1408.85
+    },
+    "rewards": {
+      "loyaltyCardLast4": "Loyalty card digits (e.g. 3756)",
+      "fuelPointsEarned": 30,
+      "fuelPointsMonthTotal": 877,
+      "fuelPointsPriorRemaining": 287,
+      "communityPartner": "Community rewards recipient if printed (e.g. Eisenhower Elementary)",
+      "surveyEntryId": "Survey or barcode lookup number at bottom of receipt (e.g. 024-802-98-785-502-600)",
+      "feedbackUrl": "www.kroger.com/feedback"
+    },
+    "lineItems": [
+      {
+        "name": "Clean item name (e.g. Kroger Pizza Sauce)",
+        "rawText": "Exact text from receipt line (e.g. KRO PIZZA SAUCE 1.39 F)",
+        "price": 1.39,
+        "quantity": 1,
+        "totalPrice": 1.39,
+        "discount": 0.00,
+        "discountDescription": "Description of any promo/coupon modifying this item, or empty string",
+        "taxFlag": "F (Food) or B (Beverage) or T (Taxable) or N (Non-taxable)",
+        "category": "Pantry" | "Produce" | "Dairy" | "Meat" | "Beverages" | "Snacks" | "Bakery" | "Frozen" | "Household" | "Personal Care" | "Health" | "Other"
+      }
+    ]
+  }
 }
+
+SPECIAL RULES FOR RECEIPTS (Grocery & Retail):
+1. If the document is a receipt (such as Kroger, Walmart, Target, Costco, etc.):
+   - Populate "documentType": "Receipt"
+   - Populate "category": "Personal"
+   - Under "referenceNumber": ALWAYS extract the unique receipt identifier (such as Kroger Entry ID: 024-802-98-785-502-600, barcode number, or transaction REF#). This is critical for deduplication.
+   - Populate "receiptDetails" with the complete itemized breakdown of EVERY line item purchased, including discounts/coupons (e.g. Mega Event Savings, Buy-X-Get-Y) paired with their corresponding items, tax flags, totals, store location, and loyalty/fuel points.
+2. If the document is NOT a receipt (e.g. MRI, medical bill, tax form, recipe), omit "receiptDetails" or set it to null.
+
+SPECIAL RULES FOR RECIPES & COOKING:
+1. If the document is a recipe, cooking/baking instructions, ingredient list, culinary guide, or meal preparation page:
+   - Populate "documentType": "Recipe"
+   - Populate "category": "Recipes & Cooking"
+   - Populate "issuer": Source website, cookbook title, blog, or author (e.g. "Greek Gateway", "Allrecipes", "NYT Cooking")
+   - Populate "personOrPatient": Chef, author, or "N/A"
+   - Populate "topicOrProcedure": The full title of the recipe or dish (e.g. "Greek Tiropita Cheese Pie Spiral Recipe")
+   - Populate "amountDue": "$0.00"
+   - Populate "referenceNumber": "N/A"
+   - Populate "keyFindings": 2-4 concise bullet points detailing:
+     * Key ingredients and measurements (e.g. "Requires phyllo dough, Greek feta cheese, eggs, and unsalted butter")
+     * Oven temperature, baking/cooking time, and prep time (e.g. "Baked at 350°F for 30-35 minutes until golden and crispy")
+     * Important culinary techniques, servings/yield, or tips
+   - Populate "summary": Concise 1-sentence summary of the dish and cooking method
+   - Populate "suggestedFilename": "YYYY-MM-DD_[Issuer]_[DishNameClean].pdf" (e.g. "2015-05-03_GreekGateway_Recipe_GreekTiropita.pdf")
+   - Populate "targetFolder": "Recipe\\\\YYYY\\\\MM" (e.g. "Recipe\\\\2015\\\\05")
+   - Populate "tags": ["Recipe", "Cooking", "[Cuisine]", "[DishType]"] (e.g. ["Recipe", "Greek", "Baking", "Cheese", "Phyllo"])
 
 Return ONLY the raw JSON string without markdown code block fences.`;
 
@@ -180,23 +257,51 @@ export async function analyzeDocumentWithGemini(
 
     const person = parsed.personOrPatient || parsed.patientOrAccount || 'N/A';
 
+    // Defensively parse and normalize receipt details (handles camelCase and snake_case)
+    const rawReceipt = parsed.receiptDetails || parsed.receipt_details || parsed.receipt;
+    let receiptDetails = undefined;
+    if (rawReceipt && typeof rawReceipt === 'object') {
+      const rawLineItems = Array.isArray(rawReceipt.lineItems)
+        ? rawReceipt.lineItems
+        : (Array.isArray(rawReceipt.line_items) ? rawReceipt.line_items : (Array.isArray(rawReceipt.items) ? rawReceipt.items : []));
+
+      receiptDetails = {
+        store: rawReceipt.store || { name: parsed.issuer || 'Kroger' },
+        transaction: rawReceipt.transaction || {},
+        financials: rawReceipt.financials || { total: parseFloat(parsed.amountDue?.replace(/[^0-9.]/g, '') || '0') },
+        rewards: rawReceipt.rewards || {},
+        lineItems: rawLineItems.map((li: any) => ({
+          name: li.name || li.description || li.item || 'Item',
+          rawText: li.rawText || li.raw_text || '',
+          price: typeof li.price === 'number' ? li.price : parseFloat(String(li.price || '0').replace(/[^0-9.]/g, '') || '0'),
+          quantity: li.quantity || 1,
+          totalPrice: typeof li.totalPrice === 'number' ? li.totalPrice : (typeof li.total_price === 'number' ? li.total_price : (typeof li.price === 'number' ? li.price : 0)),
+          discount: typeof li.discount === 'number' ? li.discount : 0,
+          discountDescription: li.discountDescription || li.discount_description || '',
+          taxFlag: li.taxFlag || li.tax_flag || 'F',
+          category: li.category || 'Other',
+        })),
+      };
+    }
+
     return {
       documentType: docType,
-      category: parsed.category || 'Personal',
-      issuer: parsed.issuer || 'Unknown Issuer',
+      category: parsed.category || (docType === 'Receipt' ? 'Personal' : (docType === 'Recipe' ? 'Recipes & Cooking' : 'Personal')),
+      issuer: parsed.issuer || (docType === 'Receipt' ? 'Kroger' : (docType === 'Recipe' ? 'Cookbook / Recipe' : 'Unknown Issuer')),
       personOrPatient: person,
       patientOrAccount: person,
       statementDate,
       dueDate: parsed.dueDate || 'N/A',
       referenceNumber: parsed.referenceNumber || 'N/A',
       providerOrDoctor: parsed.providerOrDoctor || 'N/A',
-      topicOrProcedure: parsed.topicOrProcedure || docType,
+      topicOrProcedure: parsed.topicOrProcedure || (docType === 'Receipt' ? 'Groceries' : docType),
       amountDue: parsed.amountDue || 'N/A',
       summary: parsed.summary || 'Scanned document',
       keyFindings: Array.isArray(parsed.keyFindings) ? parsed.keyFindings : [],
       suggestedFilename: parsed.suggestedFilename || `${statementDate}_${docType.replace(/\s+/g, '')}.pdf`,
       targetFolder: computedFolder,
       tags: Array.isArray(parsed.tags) ? parsed.tags : ['Document'],
+      receiptDetails,
     };
 }
 
@@ -209,6 +314,79 @@ export function generateDemoDocumentAnalysis(_rootFolder?: string): ExtractedDoc
   const today = new Date().toISOString().split('T')[0];
 
   const samples: ExtractedDocData[] = [
+    {
+      documentType: 'Receipt',
+      category: 'Personal',
+      issuer: 'Kroger (4915 Dixie Hwy)',
+      personOrPatient: 'Kroger Plus *3756',
+      statementDate: today,
+      referenceNumber: '024-802-98-785-502-600',
+      amountDue: '$30.38',
+      summary: 'Kroger grocery purchase: 15 items totaling $30.38. Saved $9.49 (24%) via Mega Event & B2G1 promotions.',
+      keyFindings: [
+        '15 items sold ($30.38 total, $0.42 tax)',
+        'Saved $9.49 (24%) with Kroger Plus & Mega Event promotions',
+        '30 fuel points earned (September monthly total: 877)',
+        'Paid via US DEBIT ending in *1874 (REF# 050704)',
+        'Community donation directed to Eisenhower Elementary',
+      ],
+      suggestedFilename: `${today}_Kroger_Receipt_Groceries.pdf`,
+      targetFolder: `Receipt/${currentYear}/${currentMonth}`,
+      tags: ['Kroger', 'Groceries', 'Food', 'Fuel Points', 'Dixie Hwy'],
+      receiptDetails: {
+        store: {
+          name: 'Kroger',
+          address: '4915 Dixie Highway',
+          phone: '(502)448-8215',
+          registerNumber: 'CHEC 502',
+        },
+        transaction: {
+          time: '16:06',
+          paymentMethod: 'US DEBIT *1874',
+          cardLast4: '1874',
+          authCode: '050704',
+          aid: 'A0000000980840',
+          tc: 'CB67D5284B2408A1',
+          itemsSold: 15,
+        },
+        financials: {
+          subtotal: 29.96,
+          tax: 0.42,
+          total: 30.38,
+          totalSavings: 9.49,
+          savingsPercentage: '24%',
+          coupons: 9.49,
+          cashback: 0.0,
+          annualSavingsYTD: 1408.85,
+        },
+        rewards: {
+          loyaltyCardLast4: '3756',
+          fuelPointsEarned: 30,
+          fuelPointsMonthTotal: 877,
+          fuelPointsPriorRemaining: 287,
+          communityPartner: 'Eisenhower Elementary',
+          surveyEntryId: '024-802-98-785-502-600',
+          feedbackUrl: 'www.kroger.com/feedback',
+        },
+        lineItems: [
+          { name: 'Kroger Pizza Sauce', rawText: 'KRO PIZZA SAUCE 1.39 F', price: 1.39, quantity: 1, totalPrice: 1.39, taxFlag: 'F', category: 'Pantry' },
+          { name: 'Kroger Pizza Sauce', rawText: 'KRO PIZZA SAUCE 1.39 F', price: 1.39, quantity: 1, totalPrice: 1.39, taxFlag: 'F', category: 'Pantry' },
+          { name: 'Kroger Spicy Red Pepper', rawText: 'KRO SPICY RED PEP 1.04 F', price: 1.04, quantity: 1, totalPrice: 1.04, taxFlag: 'F', category: 'Pantry' },
+          { name: 'Kroger Pizza Sauce', rawText: 'KRO PIZZA SAUCE 1.39 F', price: 1.39, quantity: 1, totalPrice: 1.39, taxFlag: 'F', category: 'Pantry' },
+          { name: 'Kroger Spicy Red Pepper', rawText: 'KRO SPICY RED PEP 1.04 F', price: 1.04, quantity: 1, totalPrice: 1.04, taxFlag: 'F', category: 'Pantry' },
+          { name: 'Monster Energy Drink', rawText: 'MONSTER ENERGY 3.49 B', price: 3.49, quantity: 1, totalPrice: 3.49, taxFlag: 'B', category: 'Beverages' },
+          { name: 'Monster Juice Energy', rawText: 'MONSTER JUICE ENRG 3.49 B', price: 3.49, quantity: 1, totalPrice: 3.49, taxFlag: 'B', category: 'Beverages' },
+          { name: 'Monster Juice Energy (B2G1 Free)', rawText: 'MONSTER JUICE ENRG 0.00 B', price: 3.49, quantity: 1, totalPrice: 0.0, discount: 3.49, discountDescription: 'B2G1 Beverages', taxFlag: 'B', category: 'Beverages' },
+          { name: 'Pepperidge Farm Goldfish', rawText: 'PFRM GOLDFISH 1.99 F', price: 1.99, quantity: 1, totalPrice: 0.99, discount: 1.0, discountDescription: 'Mega Event Savings', taxFlag: 'F', category: 'Snacks' },
+          { name: 'Pepperidge Farm Goldfish', rawText: 'PFRM GOLDFISH 1.99 F', price: 1.99, quantity: 1, totalPrice: 0.99, discount: 1.0, discountDescription: 'Mega Event Savings', taxFlag: 'F', category: 'Snacks' },
+          { name: 'Goldfish Ranch Crackers', rawText: 'GLDFSH RANCH 1.99 F', price: 1.99, quantity: 1, totalPrice: 0.99, discount: 1.0, discountDescription: 'Mega Event Savings', taxFlag: 'F', category: 'Snacks' },
+          { name: 'Pepperidge Farm Goldfish', rawText: 'PFRM GOLDFISH 1.99 F', price: 1.99, quantity: 1, totalPrice: 0.99, discount: 1.0, discountDescription: 'Mega Event Savings', taxFlag: 'F', category: 'Snacks' },
+          { name: 'Pepperidge Farm Goldfish', rawText: 'PFRM GOLDFISH 1.99 F', price: 1.99, quantity: 1, totalPrice: 0.99, discount: 1.0, discountDescription: 'Mega Event Savings', taxFlag: 'F', category: 'Snacks' },
+          { name: 'Pepperidge Farm Goldfish', rawText: 'PFRM GOLDFISH 1.99 F', price: 1.99, quantity: 1, totalPrice: 0.99, discount: 1.0, discountDescription: 'Mega Event Savings', taxFlag: 'F', category: 'Snacks' },
+          { name: 'Romaine Hearts Lettuce', rawText: 'ROMAINE HEARTS 4.79 F', price: 4.79, quantity: 1, totalPrice: 4.79, taxFlag: 'F', category: 'Produce' },
+        ],
+      },
+    },
     {
       documentType: 'EOB',
       issuer: 'Aetna Health',

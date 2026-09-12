@@ -46,6 +46,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+### [v0.2.1] - 2026-09-12 — Rich Retail & Kroger Receipt Itemization (Money App Ready)
+- ✨ **Added**: Full item-level receipt basket extraction (`lineItems`) with clean product names, original prices, unit quantities, promotional discounts (e.g. Kroger Mega Event, Buy-2-Get-1), food/beverage tax classification (`F`/`B`), and automatic grocery categories (Pantry, Produce, Dairy, Beverages, Snacks).
+- ✨ **Added**: Structured retail metadata nodes (`store`, `transaction`, `financials`, `rewards`) capturing store address, register/lane, card last 4, auth codes, subtotal, sales tax, total savings ($ and %), fuel points earned, month-to-date fuel points, and community rewards partners.
+- ✨ **Added**: Unique receipt lookup and deduplication anchoring: captures Kroger Entry ID / survey barcode (`Entry ID: 024-802-98-785-502-600`) as the `referenceNumber` to trigger Shallot's Pre-Filing Duplicate Guard if the same receipt is rescanned.
+- ✨ **Added**: Interactive **Receipt Itemization & Basket Drawer** in Triage Studio displaying expandable line items with discount tags, tax badges, and financial breakdown totals.
+- ✨ **Added**: **Recipe Auto-Understanding & Classification**: Dedicated first-class `'Recipe'` document type and `'Recipes & Cooking'` category. Gemini automatically detects recipes, cookbooks, and culinary guides, capturing source/publisher, dish name, key ingredients, oven temperatures, and prep/bake times into `Outbox\Recipe\YYYY\MM\`.
+- ✨ **Added**: Added `'Recipe'` to Triage Studio and Document Review Sheet doctype selector dropdowns, and `'Recipes & Cooking'` to Vault History filters.
+
+---
+
 ### [v0.1.1] - 2026-09-04 — GitHub Pages Deployment & PWA Configuration
 - ✨ **Added**: Automated GitHub Actions deployment workflow (`.github/workflows/deploy.yml`) matching the Shallot suite.
 - 🔄 **Changed**: Configured `base: './'` in `vite.config.ts` and relative asset links in `index.html` and `manifest.json` for seamless GitHub Pages hosting.

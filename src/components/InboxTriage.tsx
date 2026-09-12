@@ -26,6 +26,11 @@ import {
   ChevronRight,
   Layers,
   AlertTriangle,
+  ShoppingCart,
+  ChevronDown,
+  ChevronUp,
+  Award,
+  Percent,
 } from 'lucide-react';
 import type { InboxItem, InboxStatus, ExtractedDocData, AppSettings, ScannedDocument } from '../types';
 import {
@@ -52,6 +57,7 @@ const DOC_TYPES = [
   'Utility Bill',
   'Tax Document',
   'Receipt',
+  'Recipe',
   'Prescription',
   'Insurance Policy',
   'Lab Result',
@@ -98,6 +104,9 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
 
   // Pre-Filing Duplicate Guard state
   const [duplicateMatch, setDuplicateMatch] = useState<any | null>(null);
+
+  // Receipt Itemization collapse state
+  const [showItemization, setShowItemization] = useState(true);
 
   // Smart Photo Burst Auto-Grouping
   interface BurstBundle {
@@ -2063,6 +2072,220 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
                         </span>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* RECEIPT ITEMIZATION & BASKET BREAKDOWN (When receiptDetails exists) */}
+                {triageBundle.metadata.receiptDetails && (
+                  <div
+                    style={{
+                      marginBottom: '22px',
+                      borderRadius: '14px',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(168, 85, 247, 0.35)',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {/* Header bar */}
+                    <div
+                      onClick={() => setShowItemization(!showItemization)}
+                      style={{
+                        padding: '12px 16px',
+                        background: 'rgba(168, 85, 247, 0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <ShoppingCart size={16} color="#C084FC" />
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          Itemized Basket & Money App Data
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            background: 'rgba(168, 85, 247, 0.2)',
+                            color: '#D8B4FE',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {triageBundle.metadata.receiptDetails.lineItems?.length || 0} items
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {triageBundle.metadata.receiptDetails.financials?.totalSavings ? (
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              padding: '2px 8px',
+                              borderRadius: '10px',
+                              background: 'rgba(34, 197, 94, 0.15)',
+                              color: '#4ADE80',
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <Percent size={11} /> Saved ${triageBundle.metadata.receiptDetails.financials.totalSavings.toFixed(2)}
+                            {triageBundle.metadata.receiptDetails.financials.savingsPercentage ? ` (${triageBundle.metadata.receiptDetails.financials.savingsPercentage})` : ''}
+                          </span>
+                        ) : null}
+
+                        {triageBundle.metadata.receiptDetails.rewards?.fuelPointsEarned ? (
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              padding: '2px 8px',
+                              borderRadius: '10px',
+                              background: 'rgba(234, 179, 8, 0.15)',
+                              color: '#FACC15',
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <Award size={11} /> +{triageBundle.metadata.receiptDetails.rewards.fuelPointsEarned} fuel pts
+                          </span>
+                        ) : null}
+
+                        {showItemization ? <ChevronUp size={16} color="var(--text-secondary)" /> : <ChevronDown size={16} color="var(--text-secondary)" />}
+                      </div>
+                    </div>
+
+                    {/* Body */}
+                    {showItemization && (
+                      <div style={{ padding: '14px 16px' }}>
+                        {/* Store & Transaction Chips */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                          {triageBundle.metadata.receiptDetails.store?.name && (
+                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '3px 8px', borderRadius: '6px' }}>
+                              🏪 {triageBundle.metadata.receiptDetails.store.name} {triageBundle.metadata.receiptDetails.store.address ? `(${triageBundle.metadata.receiptDetails.store.address})` : ''}
+                            </span>
+                          )}
+                          {triageBundle.metadata.receiptDetails.transaction?.paymentMethod && (
+                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '3px 8px', borderRadius: '6px' }}>
+                              💳 {triageBundle.metadata.receiptDetails.transaction.paymentMethod}
+                            </span>
+                          )}
+                          {triageBundle.metadata.receiptDetails.rewards?.communityPartner && (
+                            <span style={{ fontSize: '11px', color: '#93C5FD', background: 'rgba(59, 130, 246, 0.12)', padding: '3px 8px', borderRadius: '6px' }}>
+                              🏫 Partner: {triageBundle.metadata.receiptDetails.rewards.communityPartner}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Line Items Table/List */}
+                        <div
+                          style={{
+                            maxHeight: '220px',
+                            overflowY: 'auto',
+                            border: '1px solid var(--border-glass)',
+                            borderRadius: '8px',
+                            background: 'rgba(0,0,0,0.2)',
+                          }}
+                        >
+                          {triageBundle.metadata.receiptDetails.lineItems && triageBundle.metadata.receiptDetails.lineItems.length > 0 ? (
+                            triageBundle.metadata.receiptDetails.lineItems.map((item, iIdx) => (
+                              <div
+                                key={iIdx}
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  padding: '8px 12px',
+                                  borderBottom: iIdx === triageBundle.metadata.receiptDetails!.lineItems.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.05)',
+                                  fontSize: '12px',
+                                }}
+                              >
+                                <div style={{ flex: 1, minWidth: 0, paddingRight: '10px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{item.name}</span>
+                                    {item.category && (
+                                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.06)', padding: '1px 6px', borderRadius: '4px' }}>
+                                        {item.category}
+                                      </span>
+                                    )}
+                                    {item.taxFlag && (
+                                      <span style={{ fontSize: '10px', color: item.taxFlag === 'F' ? '#86EFAC' : '#FCA5A5', background: 'rgba(255,255,255,0.04)', padding: '1px 5px', borderRadius: '4px' }}>
+                                        {item.taxFlag === 'F' ? 'Food' : 'Taxable'}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {item.discountDescription && (
+                                    <div style={{ fontSize: '11px', color: '#F59E0B', marginTop: '2px' }}>
+                                      ↳ {item.discountDescription} {item.discount ? `(-$${item.discount.toFixed(2)})` : ''}
+                                    </div>
+                                  )}
+                                </div>
+                                <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                  <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                                    ${(item.totalPrice ?? item.price).toFixed(2)}
+                                  </span>
+                                  {item.discount ? (
+                                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', textDecoration: 'line-through' }}>
+                                      ${item.price.toFixed(2)}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div style={{ padding: '12px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
+                              No line items detected
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Financials totals grid */}
+                        {triageBundle.metadata.receiptDetails.financials && (
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(4, 1fr)',
+                              gap: '8px',
+                              marginTop: '12px',
+                              padding: '10px',
+                              background: 'rgba(255,255,255,0.02)',
+                              borderRadius: '8px',
+                              textAlign: 'center',
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Subtotal</div>
+                              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                ${triageBundle.metadata.receiptDetails.financials.subtotal !== undefined ? triageBundle.metadata.receiptDetails.financials.subtotal.toFixed(2) : '--'}
+                              </div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tax</div>
+                              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                ${triageBundle.metadata.receiptDetails.financials.tax !== undefined ? triageBundle.metadata.receiptDetails.financials.tax.toFixed(2) : '0.00'}
+                              </div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Savings</div>
+                              <div style={{ fontSize: '12px', fontWeight: 600, color: '#4ADE80' }}>
+                                ${triageBundle.metadata.receiptDetails.financials.totalSavings !== undefined ? triageBundle.metadata.receiptDetails.financials.totalSavings.toFixed(2) : '0.00'}
+                              </div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Paid</div>
+                              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent-cyan)' }}>
+                                ${triageBundle.metadata.receiptDetails.financials.total !== undefined ? triageBundle.metadata.receiptDetails.financials.total.toFixed(2) : triageBundle.metadata.amountDue}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 

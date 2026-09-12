@@ -812,6 +812,52 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
                   </div>
                 )}
 
+                {/* Receipt Quick Metrics (Items, Savings, Fuel) */}
+                {item.rawMetadata?.receiptDetails && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        padding: '2px 6px',
+                        borderRadius: '6px',
+                        background: 'rgba(168, 85, 247, 0.15)',
+                        color: '#D8B4FE',
+                        fontWeight: 600,
+                      }}
+                    >
+                      🛒 {item.rawMetadata.receiptDetails.lineItems?.length || 0} items
+                    </span>
+                    {item.rawMetadata.receiptDetails.financials?.totalSavings ? (
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          padding: '2px 6px',
+                          borderRadius: '6px',
+                          background: 'rgba(34, 197, 94, 0.12)',
+                          color: '#4ADE80',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Saved ${item.rawMetadata.receiptDetails.financials.totalSavings.toFixed(2)}
+                      </span>
+                    ) : null}
+                    {item.rawMetadata.receiptDetails.rewards?.fuelPointsEarned ? (
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          padding: '2px 6px',
+                          borderRadius: '6px',
+                          background: 'rgba(234, 179, 8, 0.12)',
+                          color: '#FACC15',
+                          fontWeight: 600,
+                        }}
+                      >
+                        +{item.rawMetadata.receiptDetails.rewards.fuelPointsEarned} fuel pts
+                      </span>
+                    ) : null}
+                  </div>
+                )}
+
                 <p
                   style={{
                     fontSize: '11px',
@@ -1101,6 +1147,8 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
                       <option value="Bills & Utilities">Bills & Utilities</option>
                       <option value="Taxes">Taxes</option>
                       <option value="Legal">Legal</option>
+                      <option value="Personal">Personal</option>
+                      <option value="Recipes & Cooking">Recipes & Cooking</option>
                       <option value="Other">Other</option>
                     </select>
                   </div>
