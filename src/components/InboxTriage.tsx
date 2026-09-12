@@ -26,6 +26,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Clock,
+  ArrowUpDown,
   Layers,
   AlertTriangle,
   ShoppingCart,
@@ -102,6 +104,7 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
     fileNames: string[];
     pages: string[];
     metadata: ExtractedDocData;
+    fileItems?: InboxItem[];
   } | null>(null);
 
   // Pre-Filing Duplicate Guard state
@@ -112,6 +115,7 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
 
   // Auto-sorting page state
   const [isAutoSorting, setIsAutoSorting] = useState<boolean>(false);
+  const [isChronologicalAsc, setIsChronologicalAsc] = useState<boolean>(true);
 
   // Smart Photo Burst Auto-Grouping
   interface BurstBundle {
@@ -220,7 +224,13 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
       const [movedFile] = fileNames.splice(fromIndex, 1);
       fileNames.splice(toIndex, 0, movedFile);
 
-      return { ...prev, pages, fileNames };
+      const fileItems = prev.fileItems ? [...prev.fileItems] : undefined;
+      if (fileItems) {
+        const [movedItem] = fileItems.splice(fromIndex, 1);
+        fileItems.splice(toIndex, 0, movedItem);
+      }
+
+      return { ...prev, pages, fileNames, fileItems };
     });
     setActivePageIdx(toIndex);
   };
@@ -237,13 +247,72 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
     movePage(fromIndex, triageBundle.pages.length - 1);
   };
 
-  // AI-Powered Page Ordering: reads printed page numbers on all images and arranges sequentially
+  // 1-Click Reverse / Flip Page Sequence (1 ⇄ N)
+  const handleFlipOrder = () => {
+    if (!triageBundle || triageBundle.pages.length <= 1) return;
+
+    setTriageBundle((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        pages: [...prev.pages].reverse(),
+        fileNames: [...prev.fileNames].reverse(),
+        fileItems: prev.fileItems ? [...prev.fileItems].reverse() : undefined,
+      };
+    });
+    setActivePageIdx(0);
+    onFiledSuccess(`Page order flipped (Page 1 ⇄ Page ${triageBundle.pages.length})!`);
+  };
+
+  // Chronological Sort: sorts pages by their photo capture / arrival timestamp
+  const handleSortChronological = (forceAsc?: boolean) => {
+    if (!triageBundle || triageBundle.pages.length <= 1) return;
+
+    const asc = typeof forceAsc === 'boolean' ? forceAsc : !isChronologicalAsc;
+    setIsChronologicalAsc(asc);
+
+    // Map each page with its corresponding file timestamp
+    const indexed = triageBundle.pages.map((page, idx) => {
+      const fileName = triageBundle.fileNames[idx];
+      const fileItem = triageBundle.fileItems?.find((f) => f.name === fileName) || files.find((f) => f.name === fileName);
+      const time = fileItem ? new Date(fileItem.mtime).getTime() : 0;
+      return { page, fileName, fileItem, time, originalIndex: idx };
+    });
+
+    indexed.sort((a, b) => {
+      if (a.time !== b.time) {
+        return asc ? a.time - b.time : b.time - a.time;
+      }
+      return a.fileName.localeCompare(b.fileName);
+    });
+
+    setTriageBundle((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        pages: indexed.map((i) => i.page),
+        fileNames: indexed.map((i) => i.fileName),
+        fileItems: indexed.map((i) => i.fileItem).filter(Boolean) as InboxItem[],
+      };
+    });
+    setActivePageIdx(0);
+    onFiledSuccess(`Pages sorted chronologically (${asc ? 'Earliest → Latest' : 'Latest → Earliest'})!`);
+  };
+
+  // AI-Powered Page Ordering: downscales images first to prevent hanging
   const handleAutoSortPages = async () => {
     if (!triageBundle || triageBundle.pages.length <= 1) return;
     setIsAutoSorting(true);
     try {
+      // Downscale to fast, lightweight 720px thumbnails (~30KB each) so the request never hangs
+      const thumbnailPages: string[] = [];
+      for (const p of triageBundle.pages) {
+        const thumb = await optimizeImageForAi(p, 720, 0.6);
+        thumbnailPages.push(thumb);
+      }
+
       const sortedIndices = await detectDocumentPageOrder(
-        triageBundle.pages,
+        thumbnailPages,
         settings.geminiApiKey,
         settings.geminiModel
       );
@@ -251,12 +320,13 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
         if (!prev) return null;
         const pages = sortedIndices.map((i) => prev.pages[i]);
         const fileNames = sortedIndices.map((i) => prev.fileNames[i]);
-        return { ...prev, pages, fileNames };
+        const fileItems = prev.fileItems ? sortedIndices.map((i) => prev.fileItems![i]).filter(Boolean) : undefined;
+        return { ...prev, pages, fileNames, fileItems };
       });
       setActivePageIdx(0);
       onFiledSuccess(`Pages auto-sorted by detected document page numbers (1 to ${triageBundle.pages.length})!`);
     } catch (err: any) {
-      alert(err?.message || 'Could not automatically detect page order. Please use the arrow buttons to arrange pages.');
+      alert(err?.message || 'Could not auto-sort pages. Use Chronology or Flip Order instead.');
     } finally {
       setIsAutoSorting(false);
     }
@@ -445,6 +515,7 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
         fileNames: orderedFiles.map((f) => f.name),
         pages: optimizedPages,
         metadata,
+        fileItems: orderedFiles,
       });
     } catch (err: any) {
       onError(err?.message || 'Failed to analyze document');
@@ -1537,12 +1608,61 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
                       <span>Rotate 90°</span>
                     </button>
 
+                    {/* Sort Chronological Button */}
+                    {triageBundle.pages.length > 1 && (
+                      <button
+                        onClick={() => handleSortChronological()}
+                        title={`Sort pages chronologically by photo arrival timestamp (${isChronologicalAsc ? 'Oldest → Newest' : 'Newest → Oldest'})`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-glass-bright)',
+                          background: 'rgba(56, 189, 248, 0.12)',
+                          color: '#38BDF8',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <Clock size={13} />
+                        <span>Sort Chronology</span>
+                      </button>
+                    )}
+
+                    {/* Flip Order Button */}
+                    {triageBundle.pages.length > 1 && (
+                      <button
+                        onClick={handleFlipOrder}
+                        title="Flip the entire page sequence (Page 1 ⇄ Page N)"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-glass-bright)',
+                          background: 'rgba(168, 85, 247, 0.12)',
+                          color: '#C084FC',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <ArrowUpDown size={13} />
+                        <span>Flip Order</span>
+                      </button>
+                    )}
+
                     {/* Auto-Sort Pages Button */}
                     {triageBundle.pages.length > 1 && (
                       <button
-                        onClick={handleAutoSortPages}
-                        disabled={isAutoSorting}
-                        title="AI reads printed page numbers (e.g. Page 1 of 8) and sequences all pages automatically"
+                        onClick={isAutoSorting ? () => setIsAutoSorting(false) : handleAutoSortPages}
+                        title={isAutoSorting ? 'Click to cancel AI order detection' : 'AI reads printed page numbers (e.g. Page 1 of 8) and sequences all pages automatically'}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -1550,16 +1670,16 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
                           padding: '5px 10px',
                           borderRadius: '6px',
                           border: '1px solid var(--border-glass-bright)',
-                          background: isAutoSorting ? 'rgba(212, 130, 68, 0.25)' : 'rgba(212, 130, 68, 0.12)',
-                          color: 'var(--accent-primary)',
+                          background: isAutoSorting ? 'rgba(239, 68, 68, 0.2)' : 'rgba(212, 130, 68, 0.12)',
+                          color: isAutoSorting ? 'var(--accent-rose)' : 'var(--accent-primary)',
                           fontSize: '11px',
                           fontWeight: 600,
-                          cursor: isAutoSorting ? 'wait' : 'pointer',
+                          cursor: 'pointer',
                           transition: 'all 0.15s ease',
                         }}
                       >
                         <Sparkles size={13} />
-                        <span>{isAutoSorting ? 'Detecting Order...' : 'Auto-Sort Pages'}</span>
+                        <span>{isAutoSorting ? 'Cancel AI Detect' : 'AI Auto-Sort'}</span>
                       </button>
                     )}
 

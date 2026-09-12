@@ -505,6 +505,7 @@ Output ONLY the raw JSON array of integers, with no explanation or markdown code
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(7000),
         body: JSON.stringify({
           contents: [{ role: 'user', parts }],
           generationConfig: {
