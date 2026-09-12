@@ -162,6 +162,7 @@ export const App: React.FC = () => {
             }}
             onError={(err) => showToast(err, 'error')}
             onUpdateBadge={(count) => setInboxCount(count)}
+            onUpdateSettings={handleUpdateSettings}
           />
         )}
 

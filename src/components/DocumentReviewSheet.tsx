@@ -31,6 +31,7 @@ const DOC_TYPES: DocType[] = [
   'Electric Bill',
   'Utility Bill',
   'Tax Document',
+  'Social Security Statement',
   'Receipt',
   'Recipe',
   'Prescription',

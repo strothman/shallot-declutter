@@ -13,7 +13,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   useDemoMode: false,
   theme: 'shallot-plum',
   customCategories: [],
-  pinnedCategories: ['Receipts', 'Recipes & Cooking', 'Medical', 'Bills & Utilities', 'Insurance', 'Taxes'],
+  pinnedCategories: ['Receipts', 'Recipes & Cooking', 'Medical', 'Bills & Utilities', 'Insurance', 'Taxes', 'Social Security'],
+  customDocTypes: [],
 };
 
 export function applyTheme(theme: string = 'shallot-plum'): void {

@@ -425,6 +425,14 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
     if (cat.includes('bill') || cat.includes('util') || docType.includes('bill')) {
       return 'Bills & Utilities';
     }
+    if (
+      cat.includes('social security') ||
+      docType.includes('social security') ||
+      docType.includes('ssa') ||
+      cat.includes('benefit statement')
+    ) {
+      return 'Social Security';
+    }
     if (cat.includes('tax') || docType.includes('tax')) {
       return 'Taxes';
     }
@@ -443,7 +451,7 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
 
   // Compute which categories to display as pills
   const displayedCategories = useMemo(() => {
-    const defaults = ['Receipts', 'Recipes', 'Medical', 'Bills & Utilities', 'Insurance', 'Taxes'];
+    const defaults = ['Receipts', 'Recipes', 'Medical', 'Bills & Utilities', 'Insurance', 'Taxes', 'Social Security'];
     const pinned = activeSettings.pinnedCategories || defaults;
     const custom = activeSettings.customCategories || [];
 
@@ -456,7 +464,7 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
 
   // Category customization handlers
   const handleTogglePinnedCategory = (cat: string) => {
-    const defaults = ['Receipts', 'Recipes', 'Medical', 'Bills & Utilities', 'Insurance', 'Taxes'];
+    const defaults = ['Receipts', 'Recipes', 'Medical', 'Bills & Utilities', 'Insurance', 'Taxes', 'Social Security'];
     const currentPinned = activeSettings.pinnedCategories || defaults;
     let updated: string[];
     if (currentPinned.includes(cat)) {
@@ -538,6 +546,8 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
           if (itemCat !== 'Bills & Utilities') return false;
         } else if (selectedCategory === 'Taxes') {
           if (itemCat !== 'Taxes') return false;
+        } else if (selectedCategory === 'Social Security') {
+          if (itemCat !== 'Social Security') return false;
         } else {
           if (itemCat.toLowerCase() !== selectedCategory.toLowerCase() && (item.category || '').toLowerCase() !== selectedCategory.toLowerCase()) {
             return false;

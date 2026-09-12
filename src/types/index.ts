@@ -8,6 +8,7 @@ export type DocType =
   | 'Electric Bill'
   | 'Utility Bill'
   | 'Tax Document'
+  | 'Social Security Statement'
   | 'Receipt'
   | 'Recipe'
   | 'Prescription'
@@ -95,7 +96,7 @@ export interface ReceiptDetails {
 
 export interface ExtractedDocData {
   documentType: DocType | string;
-  category?: 'Medical' | 'Bills & Utilities' | 'Insurance' | 'Taxes' | 'Legal' | 'Personal' | 'Recipes & Cooking' | string;
+  category?: 'Medical' | 'Bills & Utilities' | 'Insurance' | 'Taxes' | 'Legal' | 'Personal' | 'Recipes & Cooking' | 'Social Security' | string;
   issuer: string;
   personOrPatient?: string; // Patient, account holder, customer, or taxpayer
   statementDate: string; // YYYY-MM-DD
@@ -164,6 +165,7 @@ export interface AppSettings {
   theme?: ThemeMode;
   customCategories?: string[];
   pinnedCategories?: string[];
+  customDocTypes?: string[];
 }
 
 // Global declaration for Google Identity Services

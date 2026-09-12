@@ -5,8 +5,8 @@ Examine the attached document and extract comprehensive structured metadata into
 
 Output MUST be a valid JSON object matching this exact schema:
 {
-  "documentType": "MRI Report" | "Medical Record" | "Lab Result" | "Medical Bill" | "EOB" | "Water Bill" | "Electric Bill" | "Utility Bill" | "Tax Document" | "Receipt" | "Recipe" | "Prescription" | "Insurance Policy" | "Legal Notice" | "Other",
-  "category": "Medical" | "Bills & Utilities" | "Insurance" | "Taxes" | "Legal" | "Personal" | "Recipes & Cooking",
+  "documentType": "MRI Report" | "Medical Record" | "Lab Result" | "Medical Bill" | "EOB" | "Water Bill" | "Electric Bill" | "Utility Bill" | "Tax Document" | "Social Security Statement" | "Receipt" | "Recipe" | "Prescription" | "Insurance Policy" | "Legal Notice" | "Other",
+  "category": "Medical" | "Bills & Utilities" | "Insurance" | "Taxes" | "Legal" | "Personal" | "Recipes & Cooking" | "Social Security",
   "issuer": "Clinic, hospital, provider, utility, vendor, store, or cookbook/website name (e.g. TJ Samson Community Hospital, Kroger, or Greek Gateway)",
   "personOrPatient": "Full name of patient, account holder, customer, or loyalty card (e.g. Jamie Lynn Scelso or Kroger Plus *3756)",
   "statementDate": "YYYY-MM-DD (Date of service, exam/study date, statement date, or purchase date)",
@@ -98,6 +98,27 @@ SPECIAL RULES FOR RECIPES & COOKING:
    - Populate "suggestedFilename": "YYYY-MM-DD_[Issuer]_[DishNameClean].pdf" (e.g. "2015-05-03_GreekGateway_Recipe_GreekTiropita.pdf")
    - Populate "targetFolder": "Recipe\\\\YYYY\\\\MM" (e.g. "Recipe\\\\2015\\\\05")
    - Populate "tags": ["Recipe", "Cooking", "[Cuisine]", "[DishType]"] (e.g. ["Recipe", "Greek", "Baking", "Cheese", "Phyllo"])
+
+SPECIAL RULES FOR SOCIAL SECURITY & BENEFIT STATEMENTS (Form SSA-1099, SSA-1042S, Notice 703, Benefit Verification):
+1. If the document is a Social Security Benefit Statement, Form SSA-1099, Form SSA-1042S, Social Security Administration Notice 703, or Benefit Verification Letter:
+   - Populate "documentType": "Social Security Statement"
+   - Populate "category": "Social Security"
+   - Populate "issuer": "Social Security Administration"
+   - Populate "personOrPatient": Beneficiary's full name from Box 1 (e.g. "LOGAN C STROTHMAN"). CRITICAL RULE: If Box 7 shows "NAME FOR BENEFICIARY" (e.g. "RICHARD STROTHMAN FOR LOGAN C STROTHMAN"), Box 1 is the ACTUAL BENEFICIARY. Always extract the Beneficiary's name from Box 1 as personOrPatient.
+   - Populate "referenceNumber": Extract the Claim Number from Box 8 (e.g. "401-29-0466C1") or Beneficiary SSN (last 4: "XXX-XX-3106"). Format as "Claim #: 401-29-0466C1" if Box 8 has a claim number.
+   - Populate "statementDate": Statement date (often YYYY-01-15 or the form revision date like 2026-01-15) or tax year end (e.g. 2025-12-31).
+   - Populate "topicOrProcedure": Full title with tax year (e.g. "Form SSA-1099 - Social Security Benefit Statement (Tax Year 2025)")
+   - Populate "amountDue": Net Benefits for the year from Box 5 (e.g. "$4,836.00")
+   - Populate "keyFindings": Extract exact Box values into 4-5 concise bullet points:
+     * "Benefits Paid in [Year] (Box 3): [Amount] (Paid by check or direct deposit)"
+     * "Benefits Repaid to SSA in [Year] (Box 4): [Amount or NONE]"
+     * "Net Benefits for [Year] (Box 5): [Amount] (Box 3 minus Box 4)"
+     * "Voluntary Federal Income Tax Withheld (Box 6): [Amount or NONE]"
+     * "Claim Number (Box 8): [Claim #]"
+   - Populate "summary": Plain-English 1-sentence summary (e.g. "2025 Form SSA-1099 Social Security Benefit Statement for Logan C Strothman reporting $4,836.00 net benefits paid with zero federal tax withheld.")
+   - Populate "suggestedFilename": "YYYY-MM-DD_SocialSecurityAdmin_SSA-1099_[BeneficiaryLastName-FirstName]_TaxYear[YYYY].pdf" (e.g. "2026-01-15_SocialSecurityAdmin_SSA-1099_Strothman-Logan_TaxYear2025.pdf")
+   - Populate "targetFolder": "Social Security Statement\\\\YYYY\\\\MM"
+   - Populate "tags": ["Social Security", "SSA-1099", "Benefit Statement", "Taxes", "[TaxYear] Tax Year", "Income", "Government"]
 
 Return ONLY the raw JSON string without markdown code block fences.`;
 

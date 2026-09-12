@@ -1,7 +1,7 @@
 # 📊 Shallot Declutter — Project State & Health
 
 > **Last Updated:** September 12, 2026  
-> **Current Version:** `v0.2.3` (Dedicated PC Desktop Utility)  
+> **Current Version:** `v0.2.4` (Dedicated PC Desktop Utility)  
 > **Classification:** **Personal Data Entry Workstation**  
 > **Status:** 🟢 Healthy & Ready to Run
 
@@ -60,6 +60,9 @@ Shallot Declutter is classified as a **Personal Data Entry Desktop Utility**. It
 | **Receipts Section & Store Dropdown Filter** | 🟢 Fully Working | Dedicated 'Receipts' filter pill, dynamic store dropdown (e.g. Kroger, Walmart) with item counts, deep line-item text search, and real-time total spent and savings summary cards. |
 | **Customizable Category Ribbon & Preferences** | 🟢 Fully Working | Interactive category customizer modal allowing users to pin/unpin categories, add custom categories (e.g. Vehicle Maintenance), and see active vault document count badges. |
 | **Client-Side Pagination & Scale Guard** | 🟢 Fully Working | High-performance vault pagination (12, 24, 48, or All items per page) with jump navigation, range counters, smooth scroll, and zero DOM bloat even with thousands of documents. |
+| **Social Security & Form SSA-1099 Extraction** | 🟢 Fully Working | Deep extraction for Social Security Benefit Statements (Form SSA-1099/1042S/Notice 703): isolates Box 1 beneficiary vs Box 7 representative payee, Box 8 claim number, SSN last 4, Box 3/4/5/6 benefit figures, and auto-routes to `Outbox\Social Security Statement\YYYY\MM\`. |
+| **Custom Document Types & Dynamic Taxonomy** | 🟢 Fully Working | Instant `+ Custom Type` creator right inside the Triage screen; creates new destination folders with Windows path sanitization and automatically persists custom types in settings across sessions. |
+
 
 
 ---

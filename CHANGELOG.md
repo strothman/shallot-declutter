@@ -44,6 +44,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Ongoing refinements to mobile camera auto-focus handling.
 - Planned addition of offline OCR fallback.
 
+### [v0.2.4] - 2026-09-12 — Social Security & SSA-1099 Extraction & Custom Document Types
+- ✨ **Added**: **Social Security & Form SSA-1099 Deep Extraction**: Added first-class multimodal extraction rules for Social Security paperwork (Form SSA-1099, SSA-1042S, Notice 703, and Benefit Verification letters). Accurately distinguishes Box 1 beneficiary (`Logan C Strothman`) from Box 7 representative payee / address (`Richard Strothman for Logan C Strothman`), extracts SSA Claim Number (`Box 8`), SSN last 4 (`Box 2`), and isolates all IRS tax reporting totals (`Box 3` benefits paid, `Box 4` repayments, `Box 5` net benefits, and `Box 6` federal tax withholding).
+- ✨ **Added**: **Standard 'Social Security Statement' Document Type & Category**: Automatically routes filed SSA paperwork into `Outbox\Social Security Statement\YYYY\MM\` with rich metadata sidecars and clean filenames. Added `Social Security` to canonical category resolution and vault filter ribbons.
+- ✨ **Added**: **Custom Document Types**: Added a `+ Custom Type` creation button and inline creator in the Document Type dropdown on the Inbox Triage screen. Users can create any custom folder type on the fly (e.g. `Bank Statement`, `Paystub`, `Auto Insurance`, `Veterinary Bill`), with automatic Windows filename sanitization and persistent saving to `AppSettings.customDocTypes` across sessions.
+
+---
+
 ### [v0.2.3] - 2026-09-12 — Client-Side Vault Pagination & Scale Guard
 - ✨ **Added**: **Client-Side Pagination for Document Vault**: Added high-performance pagination to `VaultHistory.tsx` to keep the DOM lean, responsive, and stutter-free when scanning in hundreds or thousands of documents.
 - ✨ **Added**: **Items-Per-Page Selector**: Added a quick switcher allowing users to choose `12`, `24` (default), `48`, or `All` documents per page.

@@ -35,6 +35,7 @@ import {
   ChevronUp,
   Award,
   Percent,
+  Plus,
 } from 'lucide-react';
 import type { InboxItem, InboxStatus, ExtractedDocData, AppSettings, ScannedDocument } from '../types';
 import {
@@ -47,7 +48,7 @@ import {
 } from '../services/inboxService';
 import { analyzeDocumentWithGemini, detectDocumentPageOrder } from '../services/geminiService';
 import { createPdfFromPages, dataUrlToBlob } from '../services/pdfService';
-import { saveVaultItem } from '../services/storageService';
+import { saveVaultItem, saveSettings } from '../services/storageService';
 import { optimizeImageForAi } from '../services/imageOptimizer';
 
 const DOC_TYPES = [
@@ -60,6 +61,7 @@ const DOC_TYPES = [
   'Electric Bill',
   'Utility Bill',
   'Tax Document',
+  'Social Security Statement',
   'Receipt',
   'Recipe',
   'Prescription',
@@ -74,6 +76,7 @@ interface InboxTriageProps {
   onFiledSuccess: (message: string) => void;
   onError: (error: string) => void;
   onUpdateBadge?: (count: number) => void;
+  onUpdateSettings?: (settings: AppSettings) => void;
 }
 
 export const InboxTriage: React.FC<InboxTriageProps> = ({
@@ -81,6 +84,7 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
   onFiledSuccess,
   onError,
   onUpdateBadge,
+  onUpdateSettings,
 }) => {
   const [inboxStatus, setInboxStatus] = useState<InboxStatus | null>(null);
   const [files, setFiles] = useState<InboxItem[]>([]);
@@ -91,6 +95,10 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [previewFile, setPreviewFile] = useState<InboxItem | null>(null);
   const [activePageIdx, setActivePageIdx] = useState<number>(0);
+
+  // Custom Document Type State & Handlers
+  const [isAddingCustomDocType, setIsAddingCustomDocType] = useState<boolean>(false);
+  const [newCustomDocTypeInput, setNewCustomDocTypeInput] = useState<string>('');
 
   // Real-time Loading & Progress State
   const [triageProgress, setTriageProgress] = useState<{
@@ -106,6 +114,41 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
     metadata: ExtractedDocData;
     fileItems?: InboxItem[];
   } | null>(null);
+
+  // Available document types combining defaults + user custom document types
+  const availableDocTypes = useMemo(() => {
+    const custom = settings.customDocTypes || [];
+    const current = triageBundle?.metadata?.documentType;
+    return Array.from(new Set([...(current ? [current] : []), ...DOC_TYPES, ...custom])).filter(Boolean);
+  }, [triageBundle?.metadata?.documentType, settings.customDocTypes]);
+
+  const handleAddCustomDocType = (name: string) => {
+    const cleaned = name.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!cleaned) return;
+
+    const existing = settings.customDocTypes || [];
+    if (!existing.includes(cleaned)) {
+      const updatedSettings = {
+        ...settings,
+        customDocTypes: [...existing, cleaned],
+      };
+      saveSettings(updatedSettings);
+      onUpdateSettings?.(updatedSettings);
+    }
+
+    if (triageBundle) {
+      setTriageBundle({
+        ...triageBundle,
+        metadata: {
+          ...triageBundle.metadata,
+          documentType: cleaned,
+        },
+      });
+    }
+
+    setIsAddingCustomDocType(false);
+    setNewCustomDocTypeInput('');
+  };
 
   // Pre-Filing Duplicate Guard state
   const [duplicateMatch, setDuplicateMatch] = useState<any | null>(null);
@@ -1955,37 +1998,117 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '18px' }}>
                   {/* Document Type (Folder) */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                      <Tag size={13} style={{ display: 'inline', marginRight: '4px' }} />
-                      Document Type (Folder)
-                    </label>
-                    <select
-                      value={triageBundle.metadata.documentType}
-                      onChange={(e) =>
-                        setTriageBundle({
-                          ...triageBundle,
-                          metadata: {
-                            ...triageBundle.metadata,
-                            documentType: e.target.value,
-                          },
-                        })
-                      }
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        borderRadius: '9px',
-                        background: 'rgba(255,255,255,0.04)',
-                        border: '1px solid var(--border-glass-bright)',
-                        color: 'var(--text-primary)',
-                        fontSize: '13px',
-                      }}
-                    >
-                      {Array.from(new Set([triageBundle.metadata.documentType, ...DOC_TYPES])).filter(Boolean).map((dt) => (
-                        <option key={dt} value={dt} style={{ background: '#1E293B', color: '#FFF' }}>
-                          {dt}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        <Tag size={13} style={{ display: 'inline', marginRight: '4px' }} />
+                        Document Type (Folder)
+                      </label>
+                      {!isAddingCustomDocType && (
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingCustomDocType(true)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--accent-primary)',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            padding: '0 4px',
+                          }}
+                        >
+                          <Plus size={12} />
+                          <span>Custom Type</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {isAddingCustomDocType ? (
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <input
+                          type="text"
+                          placeholder="e.g. Bank Statement, Paystub..."
+                          value={newCustomDocTypeInput}
+                          onChange={(e) => setNewCustomDocTypeInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddCustomDocType(newCustomDocTypeInput);
+                            } else if (e.key === 'Escape') {
+                              setIsAddingCustomDocType(false);
+                              setNewCustomDocTypeInput('');
+                            }
+                          }}
+                          autoFocus
+                          style={{
+                            flex: 1,
+                            padding: '8px 10px',
+                            borderRadius: '8px',
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid var(--accent-primary)',
+                            color: 'var(--text-primary)',
+                            fontSize: '13px',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          onClick={() => handleAddCustomDocType(newCustomDocTypeInput)}
+                          style={{ padding: '0 12px', fontSize: '12px', height: '36px' }}
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => {
+                            setIsAddingCustomDocType(false);
+                            setNewCustomDocTypeInput('');
+                          }}
+                          style={{ padding: '0 10px', fontSize: '12px', height: '36px' }}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <select
+                        value={triageBundle.metadata.documentType}
+                        onChange={(e) => {
+                          if (e.target.value === '__add_custom__') {
+                            setIsAddingCustomDocType(true);
+                          } else {
+                            setTriageBundle({
+                              ...triageBundle,
+                              metadata: {
+                                ...triageBundle.metadata,
+                                documentType: e.target.value,
+                              },
+                            });
+                          }
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '9px',
+                          background: 'rgba(255,255,255,0.04)',
+                          border: '1px solid var(--border-glass-bright)',
+                          color: 'var(--text-primary)',
+                          fontSize: '13px',
+                        }}
+                      >
+                        {availableDocTypes.map((dt) => (
+                          <option key={dt} value={dt} style={{ background: '#1E293B', color: '#FFF' }}>
+                            {dt}
+                          </option>
+                        ))}
+                        <option value="__add_custom__" style={{ background: '#0F172A', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                          ➕ Add Custom Document Type...
                         </option>
-                      ))}
-                    </select>
+                      </select>
+                    )}
                   </div>
 
                   {/* Patient / Account Name */}
