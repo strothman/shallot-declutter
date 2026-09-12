@@ -162,6 +162,8 @@ export interface AppSettings {
   enhanceContrast: boolean;
   useDemoMode: boolean;
   theme?: ThemeMode;
+  customCategories?: string[];
+  pinnedCategories?: string[];
 }
 
 // Global declaration for Google Identity Services

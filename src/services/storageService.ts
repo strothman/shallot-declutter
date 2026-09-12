@@ -12,6 +12,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   enhanceContrast: true,
   useDemoMode: false,
   theme: 'shallot-plum',
+  customCategories: [],
+  pinnedCategories: ['Receipts', 'Recipes & Cooking', 'Medical', 'Bills & Utilities', 'Insurance', 'Taxes'],
 };
 
 export function applyTheme(theme: string = 'shallot-plum'): void {

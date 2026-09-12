@@ -14,13 +14,20 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
-  Save
+  Save,
+  Store,
+  Settings2,
+  Plus,
+  Check,
 } from 'lucide-react';
-import type { ScannedDocument, OutboxCatalogItem } from '../types';
+import type { ScannedDocument, OutboxCatalogItem, AppSettings } from '../types';
 import { getOutboxCatalog, updateVaultEntry, deleteVaultEntry } from '../services/inboxService';
+import { loadSettings, saveSettings } from '../services/storageService';
 
 interface VaultHistoryProps {
   documents: ScannedDocument[];
+  settings?: AppSettings;
+  onUpdateSettings?: (settings: AppSettings) => void;
   onDeleteDoc: (id: string) => void;
   onOpenScanner: () => void;
   onUpdateVaultCount?: (count: number) => void;
@@ -51,6 +58,8 @@ interface UnifiedVaultItem {
 
 export const VaultHistory: React.FC<VaultHistoryProps> = ({
   documents,
+  settings,
+  onUpdateSettings,
   onDeleteDoc,
   onOpenScanner,
   onUpdateVaultCount,
@@ -60,6 +69,18 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedPerson, setSelectedPerson] = useState<string>('All');
   const [selectedYear, setSelectedYear] = useState<string>('All');
+  const [selectedStore, setSelectedStore] = useState<string>('All');
+
+  // Category Customization state
+  const [showCategoryCustomizer, setShowCategoryCustomizer] = useState<boolean>(false);
+  const [newCustomCategoryInput, setNewCustomCategoryInput] = useState<string>('');
+  const [activeSettings, setActiveSettings] = useState<AppSettings>(() => settings || loadSettings());
+
+  useEffect(() => {
+    if (settings) {
+      setActiveSettings(settings);
+    }
+  }, [settings]);
 
   // Edit Modal State
   const [editingItem, setEditingItem] = useState<UnifiedVaultItem | null>(null);
@@ -353,15 +374,122 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
     return Array.from(years).sort().reverse();
   }, [unifiedItems]);
 
-  const categoryOptions = ['All', 'Medical', 'Insurance', 'Bills & Utilities', 'Taxes', 'Other'];
+  // Unique Store / Merchant list
+  const availableStores = useMemo(() => {
+    const stores = new Map<string, number>();
+    unifiedItems.forEach((item) => {
+      const storeName = item.rawMetadata?.receiptDetails?.store?.name ||
+        (item.issuer && item.issuer !== 'Unknown Issuer' && item.issuer !== 'N/A' ? item.issuer : null);
+      if (storeName && storeName.trim()) {
+        const clean = storeName.trim();
+        stores.set(clean, (stores.get(clean) || 0) + 1);
+      }
+    });
+    return Array.from(stores.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [unifiedItems]);
+
+  // Canonical category resolver
+  const getItemCategory = (item: UnifiedVaultItem): string => {
+    const docType = (item.documentType || '').toLowerCase();
+    const cat = (item.category || '').toLowerCase();
+
+    if (docType === 'receipt' || cat.includes('receipt') || !!item.rawMetadata?.receiptDetails) {
+      return 'Receipts';
+    }
+    if (docType === 'recipe' || cat.includes('recipe')) {
+      return 'Recipes';
+    }
+    if (cat.includes('medical') || docType.includes('mri') || docType.includes('medical') || docType.includes('lab')) {
+      return 'Medical';
+    }
+    if (cat.includes('insurance') || docType.includes('eob')) {
+      return 'Insurance';
+    }
+    if (cat.includes('bill') || cat.includes('util') || docType.includes('bill')) {
+      return 'Bills & Utilities';
+    }
+    if (cat.includes('tax') || docType.includes('tax')) {
+      return 'Taxes';
+    }
+    return item.category || 'Other';
+  };
+
+  // Category counts and dynamic discovery
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { All: unifiedItems.length };
+    unifiedItems.forEach((item) => {
+      const c = getItemCategory(item);
+      counts[c] = (counts[c] || 0) + 1;
+    });
+    return counts;
+  }, [unifiedItems]);
+
+  // Compute which categories to display as pills
+  const displayedCategories = useMemo(() => {
+    const defaults = ['Receipts', 'Recipes', 'Medical', 'Bills & Utilities', 'Insurance', 'Taxes'];
+    const pinned = activeSettings.pinnedCategories || defaults;
+    const custom = activeSettings.customCategories || [];
+
+    // Categories in vault with > 0 items
+    const activeInVault = Object.keys(categoryCounts).filter((k) => k !== 'All' && (categoryCounts[k] || 0) > 0);
+
+    // Combine 'All' + pinned + activeInVault + custom preserving unique order
+    return Array.from(new Set(['All', ...pinned, ...activeInVault, ...custom]));
+  }, [categoryCounts, activeSettings]);
+
+  // Category customization handlers
+  const handleTogglePinnedCategory = (cat: string) => {
+    const defaults = ['Receipts', 'Recipes', 'Medical', 'Bills & Utilities', 'Insurance', 'Taxes'];
+    const currentPinned = activeSettings.pinnedCategories || defaults;
+    let updated: string[];
+    if (currentPinned.includes(cat)) {
+      updated = currentPinned.filter((c) => c !== cat);
+    } else {
+      updated = [...currentPinned, cat];
+    }
+    const newSettings = { ...activeSettings, pinnedCategories: updated };
+    setActiveSettings(newSettings);
+    saveSettings(newSettings);
+    onUpdateSettings?.(newSettings);
+  };
+
+  const handleAddCustomCategory = () => {
+    const trimmed = newCustomCategoryInput.trim();
+    if (!trimmed) return;
+    const currentCustom = activeSettings.customCategories || [];
+    if (!currentCustom.includes(trimmed)) {
+      const updatedCustom = [...currentCustom, trimmed];
+      const currentPinned = activeSettings.pinnedCategories || ['Receipts', 'Recipes', 'Medical', 'Bills & Utilities', 'Insurance', 'Taxes'];
+      const updatedPinned = [...currentPinned, trimmed];
+      const newSettings = { ...activeSettings, customCategories: updatedCustom, pinnedCategories: updatedPinned };
+      setActiveSettings(newSettings);
+      saveSettings(newSettings);
+      onUpdateSettings?.(newSettings);
+    }
+    setNewCustomCategoryInput('');
+  };
+
+  const handleRemoveCustomCategory = (cat: string) => {
+    const updatedCustom = (activeSettings.customCategories || []).filter((c) => c !== cat);
+    const updatedPinned = (activeSettings.pinnedCategories || []).filter((c) => c !== cat);
+    const newSettings = { ...activeSettings, customCategories: updatedCustom, pinnedCategories: updatedPinned };
+    setActiveSettings(newSettings);
+    saveSettings(newSettings);
+    onUpdateSettings?.(newSettings);
+    if (selectedCategory === cat) {
+      setSelectedCategory('All');
+    }
+  };
 
   // Filtered dataset
   const filteredItems = useMemo(() => {
     return unifiedItems.filter((item) => {
-      // Text search
+      // Text search (including deep search inside receipt line items)
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase();
-        const matches = 
+        const matchesBasic = 
           item.filename.toLowerCase().includes(term) ||
           item.issuer.toLowerCase().includes(term) ||
           item.personOrPatient.toLowerCase().includes(term) ||
@@ -370,24 +498,42 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
           item.referenceNumber.toLowerCase().includes(term) ||
           item.summary.toLowerCase().includes(term) ||
           item.tags.some((t) => t.toLowerCase().includes(term));
-        if (!matches) return false;
+
+        const matchesReceiptItems = item.rawMetadata?.receiptDetails?.lineItems?.some((li: any) =>
+          (li.name && li.name.toLowerCase().includes(term)) ||
+          (li.rawText && li.rawText.toLowerCase().includes(term)) ||
+          (li.category && li.category.toLowerCase().includes(term))
+        );
+
+        if (!matchesBasic && !matchesReceiptItems) return false;
       }
 
       // Category filter
       if (selectedCategory !== 'All') {
-        const itemCat = (item.category || '').toLowerCase();
-        const itemType = (item.documentType || '').toLowerCase();
-        const cat = selectedCategory.toLowerCase();
-
-        if (cat === 'medical' && !itemCat.includes('medical') && !itemType.includes('mri') && !itemType.includes('medical')) {
-          return false;
-        } else if (cat === 'insurance' && !itemCat.includes('insurance') && !itemType.includes('eob')) {
-          return false;
-        } else if (cat === 'bills & utilities' && !itemCat.includes('bill') && !itemCat.includes('util') && !itemType.includes('bill')) {
-          return false;
-        } else if (cat === 'taxes' && !itemCat.includes('tax') && !itemType.includes('tax')) {
-          return false;
+        const itemCat = getItemCategory(item);
+        if (selectedCategory === 'Receipts') {
+          if (itemCat !== 'Receipts') return false;
+        } else if (selectedCategory === 'Recipes') {
+          if (itemCat !== 'Recipes') return false;
+        } else if (selectedCategory === 'Medical') {
+          if (itemCat !== 'Medical') return false;
+        } else if (selectedCategory === 'Insurance') {
+          if (itemCat !== 'Insurance') return false;
+        } else if (selectedCategory === 'Bills & Utilities') {
+          if (itemCat !== 'Bills & Utilities') return false;
+        } else if (selectedCategory === 'Taxes') {
+          if (itemCat !== 'Taxes') return false;
+        } else {
+          if (itemCat.toLowerCase() !== selectedCategory.toLowerCase() && (item.category || '').toLowerCase() !== selectedCategory.toLowerCase()) {
+            return false;
+          }
         }
+      }
+
+      // Store / Merchant filter
+      if (selectedStore !== 'All') {
+        const storeName = item.rawMetadata?.receiptDetails?.store?.name || item.issuer || '';
+        if (!storeName.toLowerCase().includes(selectedStore.toLowerCase())) return false;
       }
 
       // Person filter
@@ -402,7 +548,38 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
 
       return true;
     });
-  }, [unifiedItems, searchTerm, selectedCategory, selectedPerson, selectedYear]);
+  }, [unifiedItems, searchTerm, selectedCategory, selectedStore, selectedPerson, selectedYear]);
+
+  // Metrics calculation
+  const totalCount = unifiedItems.length;
+  const eobCount = unifiedItems.filter((d) => d.documentType.includes('EOB') || d.category.includes('Insurance')).length;
+  const medicalCount = unifiedItems.filter((d) => d.category.includes('Medical') || d.documentType.includes('MRI')).length;
+
+  // Receipt Financial Spending & Savings Metrics
+  const receiptMetrics = useMemo(() => {
+    let totalSpent = 0;
+    let totalSaved = 0;
+    let count = 0;
+
+    filteredItems.forEach((item) => {
+      const isReceipt = getItemCategory(item) === 'Receipts';
+      if (isReceipt) {
+        count++;
+        const fin = item.rawMetadata?.receiptDetails?.financials;
+        if (fin?.total !== undefined) {
+          totalSpent += fin.total;
+        } else if (item.amountDue && item.amountDue !== 'N/A') {
+          const parsed = parseFloat(item.amountDue.replace(/[^0-9.]/g, ''));
+          if (!isNaN(parsed)) totalSpent += parsed;
+        }
+        if (fin?.totalSavings !== undefined) {
+          totalSaved += fin.totalSavings;
+        }
+      }
+    });
+
+    return { totalSpent, totalSaved, count };
+  }, [filteredItems]);
 
   // Export filtered view to CSV
   const handleExportCsv = () => {
@@ -458,41 +635,71 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Metrics
-  const totalCount = unifiedItems.length;
-  const eobCount = unifiedItems.filter((d) => d.documentType.includes('EOB') || d.category.includes('Insurance')).length;
-  const medicalCount = unifiedItems.filter((d) => d.category.includes('Medical') || d.documentType.includes('MRI')).length;
+  const isReceiptsView = selectedCategory === 'Receipts' || selectedStore !== 'All';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', width: '100%' }}>
       {/* Top Metrics Ribbon with Export Button */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
-        <div className="glass-panel" style={{ padding: '14px', textAlign: 'center' }}>
-          <span style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)' }}>
-            {totalCount}
-          </span>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>
-            Cataloged Assets
-          </p>
-        </div>
+        {isReceiptsView ? (
+          <>
+            <div className="glass-panel" style={{ padding: '14px', textAlign: 'center' }}>
+              <span style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                {receiptMetrics.count}
+              </span>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>
+                Receipts Filtered
+              </p>
+            </div>
 
-        <div className="glass-panel" style={{ padding: '14px', textAlign: 'center' }}>
-          <span style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent-primary)' }}>
-            {medicalCount}
-          </span>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>
-            Medical & Diagnostic
-          </p>
-        </div>
+            <div className="glass-panel" style={{ padding: '14px', textAlign: 'center' }}>
+              <span style={{ fontSize: '22px', fontWeight: 800, color: '#38BDF8' }}>
+                ${receiptMetrics.totalSpent.toFixed(2)}
+              </span>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>
+                Total Spent
+              </p>
+            </div>
 
-        <div className="glass-panel" style={{ padding: '14px', textAlign: 'center' }}>
-          <span style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent-cyan)' }}>
-            {eobCount}
-          </span>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>
-            Insurance & EOBs
-          </p>
-        </div>
+            <div className="glass-panel" style={{ padding: '14px', textAlign: 'center' }}>
+              <span style={{ fontSize: '22px', fontWeight: 800, color: '#4ADE80' }}>
+                ${receiptMetrics.totalSaved.toFixed(2)}
+              </span>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>
+                Total Savings & Discounts
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="glass-panel" style={{ padding: '14px', textAlign: 'center' }}>
+              <span style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                {totalCount}
+              </span>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>
+                Cataloged Assets
+              </p>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '14px', textAlign: 'center' }}>
+              <span style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent-primary)' }}>
+                {medicalCount}
+              </span>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>
+                Medical & Diagnostic
+              </p>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '14px', textAlign: 'center' }}>
+              <span style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent-cyan)' }}>
+                {eobCount}
+              </span>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>
+                Insurance & EOBs
+              </p>
+            </div>
+          </>
+        )}
 
         <div
           className="glass-panel"
@@ -532,7 +739,7 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
       {/* Multi-Facet Filter Bar */}
       <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          {/* Live Search Input */}
+          {/* Live Search Input (with deep receipt line-item support) */}
           <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
             <Search
               size={16}
@@ -543,7 +750,7 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
               type="text"
               className="input-field"
               style={{ paddingLeft: '38px', height: '38px', fontSize: '13px' }}
-              placeholder="Search by patient, provider, procedure, MRN #, or keyword..."
+              placeholder="Search by patient, provider, item, grocery, or keyword..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -565,6 +772,26 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
               </button>
             )}
           </div>
+
+          {/* Store / Merchant Dropdown Filter */}
+          {availableStores.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Store size={14} color="#F59E0B" />
+              <select
+                className="input-field"
+                value={selectedStore}
+                onChange={(e) => setSelectedStore(e.target.value)}
+                style={{ height: '38px', fontSize: '12px', paddingRight: '24px', cursor: 'pointer', minWidth: '150px' }}
+              >
+                <option value="All">All Stores / Places ({availableStores.length})</option>
+                {availableStores.map((s) => (
+                  <option key={s.name} value={s.name}>
+                    {s.name} ({s.count})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Person / Patient Dropdown Filter */}
           {availablePeople.length > 0 && (
@@ -607,13 +834,14 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
           )}
         </div>
 
-        {/* Category Pills */}
+        {/* Dynamic & Customizable Category Pills Ribbon */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', paddingBottom: '2px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
             Category:
           </span>
-          {categoryOptions.map((cat) => {
+          {displayedCategories.map((cat) => {
             const isActive = selectedCategory === cat;
+            const count = categoryCounts[cat];
             return (
               <button
                 key={cat}
@@ -628,12 +856,54 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
                   color: isActive ? '#FFFFFF' : 'var(--text-secondary)',
                   borderColor: isActive ? 'transparent' : 'var(--border-glass)',
                   transition: 'all 0.15s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                {cat}
+                <span>{cat}</span>
+                {count !== undefined && count > 0 && cat !== 'All' && (
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      padding: '1px 5px',
+                      borderRadius: '8px',
+                      background: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
+                      color: isActive ? '#FFFFFF' : 'var(--text-muted)',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {count}
+                  </span>
+                )}
               </button>
             );
           })}
+
+          {/* Customize Categories Trigger Button */}
+          <button
+            onClick={() => setShowCategoryCustomizer(true)}
+            style={{
+              padding: '5px 10px',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              background: 'transparent',
+              border: '1px dashed var(--border-glass-bright)',
+              borderRadius: '20px',
+              color: 'var(--accent-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              whiteSpace: 'nowrap',
+              marginLeft: '4px',
+            }}
+            title="Customize which categories appear on your filter bar"
+          >
+            <Settings2 size={12} />
+            <span>Customize</span>
+          </button>
         </div>
       </div>
 
@@ -1465,6 +1735,256 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
               >
                 <Trash2 size={14} />
                 <span>{isDeleting ? 'Deleting...' : 'Delete Document'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category Customizer Modal */}
+      {showCategoryCustomizer && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(5, 7, 12, 0.78)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            animation: 'fadeIn 0.15s ease-out',
+          }}
+          onClick={() => setShowCategoryCustomizer(false)}
+        >
+          <div
+            className="glass-panel"
+            style={{
+              width: '100%',
+              maxWidth: '540px',
+              padding: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px',
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-glass-bright)',
+              boxShadow: '0 24px 48px rgba(0, 0, 0, 0.5), 0 0 20px rgba(212, 130, 68, 0.15)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: 'rgba(212, 130, 68, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Settings2 size={20} color="var(--accent-primary)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '17px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                    Customize Category Filter Bar
+                  </h3>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                    Choose which categories appear as quick filters on your ribbon.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCategoryCustomizer(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Standard Categories Selection */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>
+                Standard Categories
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '8px' }}>
+                {['Receipts', 'Recipes', 'Medical', 'Bills & Utilities', 'Insurance', 'Taxes'].map((cat) => {
+                  const pinned = (activeSettings.pinnedCategories || ['Receipts', 'Recipes', 'Medical', 'Bills & Utilities', 'Insurance', 'Taxes']).includes(cat);
+                  const count = categoryCounts[cat] || 0;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => handleTogglePinnedCategory(cat)}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: pinned ? '1px solid var(--accent-primary)' : '1px solid var(--border-glass)',
+                        background: pinned ? 'rgba(212, 130, 68, 0.12)' : 'var(--bg-surface-elevated)',
+                        color: pinned ? 'var(--text-primary)' : 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div
+                          style={{
+                            width: '16px',
+                            height: '16px',
+                            borderRadius: '4px',
+                            border: pinned ? 'none' : '1px solid var(--border-glass-bright)',
+                            background: pinned ? 'var(--accent-primary)' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {pinned && <Check size={12} color="#FFFFFF" />}
+                        </div>
+                        <span>{cat}</span>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          color: 'var(--text-muted)',
+                          padding: '1px 5px',
+                          borderRadius: '6px',
+                          background: 'rgba(255,255,255,0.06)',
+                        }}
+                      >
+                        {count} docs
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom User Categories */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>
+                Your Custom Categories
+              </label>
+
+              {/* Add Custom Category Form */}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="e.g. Vehicle Maintenance, Work Expenses..."
+                  value={newCustomCategoryInput}
+                  onChange={(e) => setNewCustomCategoryInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCustomCategory();
+                    }
+                  }}
+                  style={{ flex: 1, height: '36px', fontSize: '12px' }}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleAddCustomCategory}
+                  disabled={!newCustomCategoryInput.trim()}
+                  style={{ padding: '0 14px', height: '36px', fontSize: '12px' }}
+                >
+                  <Plus size={14} />
+                  <span>Add</span>
+                </button>
+              </div>
+
+              {/* Custom Categories List */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+                {activeSettings.customCategories && activeSettings.customCategories.length > 0 ? (
+                  activeSettings.customCategories.map((cat) => {
+                    const count = categoryCounts[cat] || 0;
+                    return (
+                      <span
+                        key={cat}
+                        className="pill"
+                        style={{
+                          padding: '4px 10px',
+                          fontSize: '11px',
+                          background: 'rgba(56, 189, 248, 0.12)',
+                          borderColor: 'rgba(56, 189, 248, 0.3)',
+                          color: '#38BDF8',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <span>{cat}</span>
+                        <span style={{ fontSize: '9px', opacity: 0.8 }}>({count})</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCustomCategory(cat)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'inherit',
+                            cursor: 'pointer',
+                            padding: '0 2px',
+                            opacity: 0.7,
+                          }}
+                          title={`Remove category "${cat}"`}
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    );
+                  })
+                ) : (
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    No custom categories added yet. Add one above to create custom filter pills!
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: '1px solid var(--border-glass)' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ fontSize: '11px', padding: '6px 10px' }}
+                onClick={() => {
+                  const defaults = ['Receipts', 'Recipes', 'Medical', 'Bills & Utilities', 'Insurance', 'Taxes'];
+                  const resetSettings = {
+                    ...activeSettings,
+                    pinnedCategories: defaults,
+                  };
+                  setActiveSettings(resetSettings);
+                  saveSettings(resetSettings);
+                  onUpdateSettings?.(resetSettings);
+                }}
+              >
+                Reset Default Categories
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setShowCategoryCustomizer(false)}
+                style={{ fontSize: '12px', padding: '8px 18px' }}
+              >
+                Done
               </button>
             </div>
           </div>

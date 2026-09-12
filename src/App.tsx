@@ -220,6 +220,8 @@ export const App: React.FC = () => {
         {activeTab === 'vault' && (
           <VaultHistory
             documents={vault}
+            settings={settings}
+            onUpdateSettings={handleUpdateSettings}
             onDeleteDoc={handleDeleteDoc}
             onOpenScanner={() => setActiveTab('scan')}
             onUpdateVaultCount={(count) => setVaultCount(count)}

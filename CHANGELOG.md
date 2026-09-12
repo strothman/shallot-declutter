@@ -46,6 +46,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+### [v0.2.2] - 2026-09-12 — Receipts Section, Store Filter & User Customizable Categories
+- ✨ **Added**: **Dedicated Receipts Category & Metrics**: Added first-class 'Receipts' filter pill to the Vault History ribbon. When viewing Receipts or selecting a store, the top metrics cards dynamically shift into financial reporting mode: displaying **Receipts Filtered**, **Total Spent ($)**, and **Total Savings & Discounts ($)**.
+- ✨ **Added**: **Dynamic Store & Place Dropdown Filter**: Dynamic dropdown in the filter bar listing every unique merchant/store (e.g. Kroger, Walmart, Trader Joe's) with real-time document counts.
+- ✨ **Added**: **User-Customizable Category Ribbon**: Interactive **Customize** modal (`⚙️ Customize`) allowing users to pin or unpin quick-filter pills (Receipts, Recipes, Medical, Bills & Utilities, Insurance, Taxes) and create personalized custom categories (e.g. `Vehicle Maintenance`, `Work Expenses`).
+- ✨ **Added**: **Smart Vault Discovery & Document Count Badges**: The category ribbon automatically detects non-empty categories present in the vault and displays real-time document count badges on each filter pill.
+- ✨ **Added**: **Deep Receipt Line-Item Search**: The Vault live search now matches not only document titles, issuers, and summaries, but also individual line-item groceries and items within itemized receipts (e.g. searching "Goldfish" or "Romaine" immediately locates the exact receipt).
+- ✨ **Added**: Persisted user preferences for `pinnedCategories` and `customCategories` in `AppSettings` via browser LocalStorage.
+
+---
+
 ### [v0.2.1] - 2026-09-12 — Rich Retail & Kroger Receipt Itemization (Money App Ready)
 - ✨ **Added**: Full item-level receipt basket extraction (`lineItems`) with clean product names, original prices, unit quantities, promotional discounts (e.g. Kroger Mega Event, Buy-2-Get-1), food/beverage tax classification (`F`/`B`), and automatic grocery categories (Pantry, Produce, Dairy, Beverages, Snacks).
 - ✨ **Added**: Structured retail metadata nodes (`store`, `transaction`, `financials`, `rewards`) capturing store address, register/lane, card last 4, auth codes, subtotal, sales tax, total savings ($ and %), fuel points earned, month-to-date fuel points, and community rewards partners.

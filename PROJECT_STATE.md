@@ -1,7 +1,7 @@
 # 📊 Shallot Declutter — Project State & Health
 
 > **Last Updated:** September 12, 2026  
-> **Current Version:** `v0.2.1` (Dedicated PC Desktop Utility)  
+> **Current Version:** `v0.2.2` (Dedicated PC Desktop Utility)  
 > **Classification:** **Personal Data Entry Workstation**  
 > **Status:** 🟢 Healthy & Ready to Run
 
@@ -57,6 +57,8 @@ Shallot Declutter is classified as a **Personal Data Entry Desktop Utility**. It
 | **Hardened File Reliability & Audit Trail** | 🟢 Fully Working | Automated empty ghost folder pruning, atomic temp-file JSON writes, orphan PDF auto-cataloging, safe cross-device file moves, and immutable audit logging in `Archive/audit_log.jsonl`. |
 | **Itemized Receipt & Money App Node Retention** | 🟢 Fully Working | Extracts complete itemized grocery & retail receipt basket lines (item names, unit prices, discounts/Mega Events, food/beverage tax flags, savings %, fuel points) directly into JSON sidecars ready for Money app ingestion. |
 | **Automated Recipe Detection & Classification** | 🟢 Fully Working | Auto-classifies cooking/baking recipes into 'Recipe' docType and 'Recipes & Cooking' category, routing files to `Outbox\Recipe\YYYY\MM\` with key ingredients, oven temperatures, and culinary steps. |
+| **Receipts Section & Store Dropdown Filter** | 🟢 Fully Working | Dedicated 'Receipts' filter pill, dynamic store dropdown (e.g. Kroger, Walmart) with item counts, deep line-item text search, and real-time total spent and savings summary cards. |
+| **Customizable Category Ribbon & Preferences** | 🟢 Fully Working | Interactive category customizer modal allowing users to pin/unpin categories, add custom categories (e.g. Vehicle Maintenance), and see active vault document count badges. |
 
 
 ---
