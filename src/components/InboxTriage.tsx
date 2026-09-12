@@ -24,6 +24,8 @@ import {
   RotateCw,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Layers,
   AlertTriangle,
   ShoppingCart,
@@ -41,7 +43,7 @@ import {
   saveToOutbox,
   checkDuplicate,
 } from '../services/inboxService';
-import { analyzeDocumentWithGemini } from '../services/geminiService';
+import { analyzeDocumentWithGemini, detectDocumentPageOrder } from '../services/geminiService';
 import { createPdfFromPages, dataUrlToBlob } from '../services/pdfService';
 import { saveVaultItem } from '../services/storageService';
 import { optimizeImageForAi } from '../services/imageOptimizer';
@@ -107,6 +109,9 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
 
   // Receipt Itemization collapse state
   const [showItemization, setShowItemization] = useState(true);
+
+  // Auto-sorting page state
+  const [isAutoSorting, setIsAutoSorting] = useState<boolean>(false);
 
   // Smart Photo Burst Auto-Grouping
   interface BurstBundle {
@@ -218,6 +223,43 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
       return { ...prev, pages, fileNames };
     });
     setActivePageIdx(toIndex);
+  };
+
+  // Quick jump to first page
+  const movePageToStart = (fromIndex: number) => {
+    if (!triageBundle || fromIndex <= 0) return;
+    movePage(fromIndex, 0);
+  };
+
+  // Quick jump to last page
+  const movePageToEnd = (fromIndex: number) => {
+    if (!triageBundle || fromIndex >= triageBundle.pages.length - 1) return;
+    movePage(fromIndex, triageBundle.pages.length - 1);
+  };
+
+  // AI-Powered Page Ordering: reads printed page numbers on all images and arranges sequentially
+  const handleAutoSortPages = async () => {
+    if (!triageBundle || triageBundle.pages.length <= 1) return;
+    setIsAutoSorting(true);
+    try {
+      const sortedIndices = await detectDocumentPageOrder(
+        triageBundle.pages,
+        settings.geminiApiKey,
+        settings.geminiModel
+      );
+      setTriageBundle((prev) => {
+        if (!prev) return null;
+        const pages = sortedIndices.map((i) => prev.pages[i]);
+        const fileNames = sortedIndices.map((i) => prev.fileNames[i]);
+        return { ...prev, pages, fileNames };
+      });
+      setActivePageIdx(0);
+      onFiledSuccess(`Pages auto-sorted by detected document page numbers (1 to ${triageBundle.pages.length})!`);
+    } catch (err: any) {
+      alert(err?.message || 'Could not automatically detect page order. Please use the arrow buttons to arrange pages.');
+    } finally {
+      setIsAutoSorting(false);
+    }
   };
 
   // Remove individual page from bundle
@@ -1495,6 +1537,54 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
                       <span>Rotate 90°</span>
                     </button>
 
+                    {/* Auto-Sort Pages Button */}
+                    {triageBundle.pages.length > 1 && (
+                      <button
+                        onClick={handleAutoSortPages}
+                        disabled={isAutoSorting}
+                        title="AI reads printed page numbers (e.g. Page 1 of 8) and sequences all pages automatically"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-glass-bright)',
+                          background: isAutoSorting ? 'rgba(212, 130, 68, 0.25)' : 'rgba(212, 130, 68, 0.12)',
+                          color: 'var(--accent-primary)',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: isAutoSorting ? 'wait' : 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <Sparkles size={13} />
+                        <span>{isAutoSorting ? 'Detecting Order...' : 'Auto-Sort Pages'}</span>
+                      </button>
+                    )}
+
+                    {/* Move to First */}
+                    {triageBundle.pages.length > 1 && (
+                      <button
+                        onClick={() => movePageToStart(activePageIdx)}
+                        disabled={activePageIdx === 0}
+                        title="Make First Page (⏮)"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '5px 6px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-glass)',
+                          background: activePageIdx === 0 ? 'transparent' : 'rgba(255,255,255,0.06)',
+                          color: activePageIdx === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
+                          cursor: activePageIdx === 0 ? 'not-allowed' : 'pointer',
+                          opacity: activePageIdx === 0 ? 0.4 : 1,
+                        }}
+                      >
+                        <ChevronsLeft size={14} />
+                      </button>
+                    )}
+
                     {/* Move Left */}
                     {triageBundle.pages.length > 1 && (
                       <button
@@ -1536,6 +1626,28 @@ export const InboxTriage: React.FC<InboxTriageProps> = ({
                         }}
                       >
                         <ChevronRight size={14} />
+                      </button>
+                    )}
+
+                    {/* Move to Last */}
+                    {triageBundle.pages.length > 1 && (
+                      <button
+                        onClick={() => movePageToEnd(activePageIdx)}
+                        disabled={activePageIdx === triageBundle.pages.length - 1}
+                        title="Make Final Page (⏭)"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '5px 6px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-glass)',
+                          background: activePageIdx === triageBundle.pages.length - 1 ? 'transparent' : 'rgba(255,255,255,0.06)',
+                          color: activePageIdx === triageBundle.pages.length - 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                          cursor: activePageIdx === triageBundle.pages.length - 1 ? 'not-allowed' : 'pointer',
+                          opacity: activePageIdx === triageBundle.pages.length - 1 ? 0.4 : 1,
+                        }}
+                      >
+                        <ChevronsRight size={14} />
                       </button>
                     )}
 

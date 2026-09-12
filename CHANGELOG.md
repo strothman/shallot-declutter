@@ -53,6 +53,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - ✨ **Added**: **Smart Vault Discovery & Document Count Badges**: The category ribbon automatically detects non-empty categories present in the vault and displays real-time document count badges on each filter pill.
 - ✨ **Added**: **Deep Receipt Line-Item Search**: The Vault live search now matches not only document titles, issuers, and summaries, but also individual line-item groceries and items within itemized receipts (e.g. searching "Goldfish" or "Romaine" immediately locates the exact receipt).
 - ✨ **Added**: Persisted user preferences for `pinnedCategories` and `customCategories` in `AppSettings` via browser LocalStorage.
+- ✨ **Added**: **AI Auto-Sort by Page # (`🪄 Auto-Sort Pages`)**: Resolves out-of-order phone photos caused by random iOS UUID filenames or simultaneous Google Drive desktop sync. Automatically prompts Gemini Vision to detect printed page numbers (e.g. "Page 1 of 8", "Page 2 of 8") or natural reading flow across all bundle pages and arranges them sequentially in 1 click.
+- ✨ **Added**: **Quick Jump-to-First (⏮) & Jump-to-Last (⏭) Buttons**: Added instant 1-click controls in the Triage toolbar to shift any selected photo directly to the front (`Page 1`) or back of a multi-page document bundle.
 - 🔄 **Removed**: **PC Webcam "Quick Scan / Upload" Tab**: Removed the computer camera viewfinder and header nav tab to streamline the desktop interface into two clean workspaces: **Inbox Triage** (for phone-scanned documents) and **Document Vault** (for master catalog history). Empty vault CTA now links directly to Inbox.
 
 ---

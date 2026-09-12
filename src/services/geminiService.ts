@@ -436,3 +436,111 @@ export function generateDemoDocumentAnalysis(_rootFolder?: string): ExtractedDoc
   const randomIndex = Math.floor(Math.random() * samples.length);
   return samples[randomIndex];
 }
+
+/**
+ * Uses Gemini multimodal vision to detect the printed page number or logical sequence
+ * of multi-page documents (e.g. "Page 1 of 8", "1/8", or natural document flow).
+ * Returns an array of 0-based indices representing the sorted order.
+ */
+export async function detectDocumentPageOrder(
+  pages: string[],
+  apiKey: string,
+  model: string = 'gemini-3.5-flash-lite'
+): Promise<number[]> {
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error('Gemini API key is required to detect page order.');
+  }
+
+  if (pages.length <= 1) {
+    return pages.map((_, i) => i);
+  }
+
+  const promptText = `You are a document sequencing assistant.
+You are provided with ${pages.length} images of document pages. They may be out of order.
+For EACH image provided (indices 0 to ${pages.length - 1}):
+1. Inspect the image closely for printed page numbers (e.g. "Page 1 of 8", "1 of 8", "Page 2", "p. 1", header/footer page numbers).
+2. If explicit page numbers are printed, use them to order the pages starting from Page 1 to the final page.
+3. If page numbers are not printed, infer the natural reading order (e.g. cover/title notice first, followed by claim summaries, followed by detailed line items and instructions).
+
+Return ONLY a JSON array of the 0-based indices in their correct sorted order.
+For example, if you have 4 images and:
+- image 3 is Page 1
+- image 1 is Page 2
+- image 0 is Page 3
+- image 2 is Page 4
+You must return:
+[3, 1, 0, 2]
+
+Output ONLY the raw JSON array of integers, with no explanation or markdown code block fences.`;
+
+  const parts: any[] = [{ text: promptText }];
+
+  for (let i = 0; i < pages.length; i++) {
+    const page = pages[i];
+    const mimeMatch = page.match(/^data:([a-zA-Z0-9/+-]+);base64,/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const base64Data = page.replace(/^data:[a-zA-Z0-9/+-]+;base64,/, '');
+    parts.push({
+      inlineData: {
+        mimeType,
+        data: base64Data,
+      },
+    });
+  }
+
+  const userModel = (!model || model === 'gemini-2.5-flash' || model === 'gemini-3.1-flash-lite')
+    ? 'gemini-3.5-flash-lite'
+    : model;
+
+  const candidateModels = Array.from(new Set([
+    userModel,
+    'gemini-3.5-flash-lite',
+    'gemini-3.7-flash',
+    'gemini-3.1-flash-lite',
+  ]));
+
+  for (const currentModel of candidateModels) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey.trim()}`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts }],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 256,
+          },
+        }),
+      });
+
+      if (!res.ok) continue;
+
+      const data = await res.json();
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) continue;
+
+      const cleaned = rawText
+        .replace(/```(?:json)?/gi, '')
+        .replace(/```/g, '')
+        .trim();
+
+      const match = cleaned.match(/\[[\d\s,]+\]/);
+      if (!match) continue;
+
+      const parsed: number[] = JSON.parse(match[0]);
+      if (Array.isArray(parsed) && parsed.length === pages.length) {
+        const indexSet = new Set(parsed);
+        const allPresent = pages.every((_, i) => indexSet.has(i));
+        if (allPresent) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Try next candidate model
+    }
+  }
+
+  throw new Error('Unable to determine page order automatically. Please use the arrow buttons to arrange pages.');
+}
+
