@@ -19,6 +19,10 @@ import {
   Plus,
   Check,
   Inbox,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import type { ScannedDocument, OutboxCatalogItem, AppSettings } from '../types';
 import { getOutboxCatalog, updateVaultEntry, deleteVaultEntry } from '../services/inboxService';
@@ -72,6 +76,15 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
   const [selectedPerson, setSelectedPerson] = useState<string>('All');
   const [selectedYear, setSelectedYear] = useState<string>('All');
   const [selectedStore, setSelectedStore] = useState<string>('All');
+
+  // Pagination State (pageSize = 12, 24, 48, or -1 for All)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(24);
+
+  // Reset to first page whenever search or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory, selectedStore, selectedPerson, selectedYear]);
 
   // Category Customization state
   const [showCategoryCustomizer, setShowCategoryCustomizer] = useState<boolean>(false);
@@ -552,6 +565,19 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
     });
   }, [unifiedItems, searchTerm, selectedCategory, selectedStore, selectedPerson, selectedYear]);
 
+  // Pagination calculations
+  const totalPages = pageSize === -1 ? 1 : Math.max(1, Math.ceil(filteredItems.length / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedItems = useMemo(() => {
+    if (pageSize === -1) return filteredItems;
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredItems.slice(start, start + pageSize);
+  }, [filteredItems, safeCurrentPage, pageSize]);
+
+  const startIndex = filteredItems.length === 0 ? 0 : pageSize === -1 ? 1 : (safeCurrentPage - 1) * pageSize + 1;
+  const endIndex = pageSize === -1 ? filteredItems.length : Math.min(safeCurrentPage * pageSize, filteredItems.length);
+
   // Metrics calculation
   const totalCount = unifiedItems.length;
   const eobCount = unifiedItems.filter((d) => d.documentType.includes('EOB') || d.category.includes('Insurance')).length;
@@ -971,8 +997,9 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
           )}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '16px' }}>
-          {filteredItems.map((item) => (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '16px' }}>
+            {paginatedItems.map((item) => (
             <div
               key={item.id}
               className="glass-panel"
@@ -1224,7 +1251,214 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
               </div>
             </div>
           ))}
-        </div>
+          </div>
+
+          {/* Bottom Pagination Control Bar */}
+          <div
+            className="glass-panel"
+            style={{
+              marginTop: '16px',
+              padding: '12px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
+              borderRadius: '12px',
+              border: '1px solid var(--border-glass)',
+              background: 'rgba(255, 255, 255, 0.03)',
+            }}
+          >
+            {/* Left: Range and Count */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+              <span>
+                Showing <strong style={{ color: 'var(--text-primary)' }}>{startIndex}</strong>–<strong style={{ color: 'var(--text-primary)' }}>{endIndex}</strong> of{' '}
+                <strong style={{ color: 'var(--text-primary)' }}>{filteredItems.length}</strong> {filteredItems.length === 1 ? 'document' : 'documents'}
+              </span>
+            </div>
+
+            {/* Center: Page Controls */}
+            {pageSize !== -1 && totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  type="button"
+                  className="btn-icon"
+                  onClick={() => {
+                    setCurrentPage(1);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  disabled={safeCurrentPage === 1}
+                  title="First Page"
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    opacity: safeCurrentPage === 1 ? 0.35 : 1,
+                    cursor: safeCurrentPage === 1 ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <ChevronsLeft size={16} />
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-icon"
+                  onClick={() => {
+                    setCurrentPage((p) => Math.max(1, p - 1));
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  disabled={safeCurrentPage === 1}
+                  title="Previous Page"
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    opacity: safeCurrentPage === 1 ? 0.35 : 1,
+                    cursor: safeCurrentPage === 1 ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+
+                {/* Page Number Jump Buttons */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {(() => {
+                    const pages: (number | string)[] = [];
+                    if (totalPages <= 7) {
+                      for (let i = 1; i <= totalPages; i++) pages.push(i);
+                    } else {
+                      pages.push(1);
+                      if (safeCurrentPage > 3) pages.push('dots-1');
+                      const start = Math.max(2, safeCurrentPage - 1);
+                      const end = Math.min(totalPages - 1, safeCurrentPage + 1);
+                      for (let i = start; i <= end; i++) {
+                        pages.push(i);
+                      }
+                      if (safeCurrentPage < totalPages - 2) pages.push('dots-2');
+                      pages.push(totalPages);
+                    }
+
+                    return pages.map((p, idx) => {
+                      if (typeof p === 'string') {
+                        return (
+                          <span key={`dots-${idx}`} style={{ padding: '0 4px', color: 'var(--text-muted)', fontSize: '12px' }}>
+                            …
+                          </span>
+                        );
+                      }
+                      const isActive = p === safeCurrentPage;
+                      return (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => {
+                            setCurrentPage(p);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          style={{
+                            minWidth: '32px',
+                            height: '32px',
+                            padding: '0 6px',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            fontWeight: isActive ? 700 : 500,
+                            border: isActive ? '1px solid var(--accent-primary)' : '1px solid var(--border-glass)',
+                            background: isActive ? 'var(--accent-primary)' : 'rgba(255, 255, 255, 0.04)',
+                            color: isActive ? '#FFFFFF' : 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {p}
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-icon"
+                  onClick={() => {
+                    setCurrentPage((p) => Math.min(totalPages, p + 1));
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  disabled={safeCurrentPage === totalPages}
+                  title="Next Page"
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    opacity: safeCurrentPage === totalPages ? 0.35 : 1,
+                    cursor: safeCurrentPage === totalPages ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <ChevronRight size={16} />
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-icon"
+                  onClick={() => {
+                    setCurrentPage(totalPages);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  disabled={safeCurrentPage === totalPages}
+                  title="Last Page"
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    opacity: safeCurrentPage === totalPages ? 0.35 : 1,
+                    cursor: safeCurrentPage === totalPages ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <ChevronsRight size={16} />
+                </button>
+              </div>
+            )}
+
+            {/* Right: Items Per Page Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Per page:</span>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: 'rgba(0, 0, 0, 0.25)',
+                  padding: '2px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-glass)',
+                  gap: '2px',
+                }}
+              >
+                {[12, 24, 48, -1].map((size) => {
+                  const isSelected = pageSize === size;
+                  const label = size === -1 ? 'All' : String(size);
+                  return (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => {
+                        setPageSize(size);
+                        setCurrentPage(1);
+                      }}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        fontSize: '11px',
+                        fontWeight: isSelected ? 700 : 500,
+                        cursor: 'pointer',
+                        background: isSelected ? 'var(--accent-primary)' : 'transparent',
+                        color: isSelected ? '#FFFFFF' : 'var(--text-secondary)',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Edit Entry Modal Overlay */}

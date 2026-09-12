@@ -1,7 +1,7 @@
 # 📊 Shallot Declutter — Project State & Health
 
 > **Last Updated:** September 12, 2026  
-> **Current Version:** `v0.2.2` (Dedicated PC Desktop Utility)  
+> **Current Version:** `v0.2.3` (Dedicated PC Desktop Utility)  
 > **Classification:** **Personal Data Entry Workstation**  
 > **Status:** 🟢 Healthy & Ready to Run
 
@@ -59,6 +59,7 @@ Shallot Declutter is classified as a **Personal Data Entry Desktop Utility**. It
 | **Automated Recipe Detection & Classification** | 🟢 Fully Working | Auto-classifies cooking/baking recipes into 'Recipe' docType and 'Recipes & Cooking' category, routing files to `Outbox\Recipe\YYYY\MM\` with key ingredients, oven temperatures, and culinary steps. |
 | **Receipts Section & Store Dropdown Filter** | 🟢 Fully Working | Dedicated 'Receipts' filter pill, dynamic store dropdown (e.g. Kroger, Walmart) with item counts, deep line-item text search, and real-time total spent and savings summary cards. |
 | **Customizable Category Ribbon & Preferences** | 🟢 Fully Working | Interactive category customizer modal allowing users to pin/unpin categories, add custom categories (e.g. Vehicle Maintenance), and see active vault document count badges. |
+| **Client-Side Pagination & Scale Guard** | 🟢 Fully Working | High-performance vault pagination (12, 24, 48, or All items per page) with jump navigation, range counters, smooth scroll, and zero DOM bloat even with thousands of documents. |
 
 
 ---

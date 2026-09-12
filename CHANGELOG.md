@@ -44,6 +44,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Ongoing refinements to mobile camera auto-focus handling.
 - Planned addition of offline OCR fallback.
 
+### [v0.2.3] - 2026-09-12 — Client-Side Vault Pagination & Scale Guard
+- ✨ **Added**: **Client-Side Pagination for Document Vault**: Added high-performance pagination to `VaultHistory.tsx` to keep the DOM lean, responsive, and stutter-free when scanning in hundreds or thousands of documents.
+- ✨ **Added**: **Items-Per-Page Selector**: Added a quick switcher allowing users to choose `12`, `24` (default), `48`, or `All` documents per page.
+- ✨ **Added**: **Jump & Boundary Page Controls**: First (`⏮`), Previous (`◀`), individual page pills with ellipsis for large libraries, Next (`▶`), and Last (`⏭`) buttons.
+- ✨ **Added**: **Range & Total Document Counter**: Real-time counter displaying `Showing X–Y of Z documents`.
+- ✨ **Added**: **Smooth Scroll Transition**: Changing pages automatically scrolls the user smoothly to the top of the vault catalog view.
+- ⚡ **Performance**: Full-text search, category filters, store dropdowns, financial spending metrics, and CSV export continue to operate across the entire master library instantly; pagination partitions only the rendered DOM nodes.
+
 ---
 
 ### [v0.2.2] - 2026-09-12 — Receipts Section, Store Filter & User Customizable Categories
