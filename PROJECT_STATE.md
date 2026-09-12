@@ -53,6 +53,8 @@ Shallot Declutter is classified as a **Personal Data Entry Desktop Utility**. It
 | **Physical Disk JSON Scan on Load** | 🟢 Fully Working | Automatically traverses `Outbox` directories on startup to reconcile index against actual physical sidecar files. |
 | **In-Vault Entry & Raw JSON Editor** | 🟢 Fully Working | Modal editor on every vault card supporting both structured form fields and raw JSON editing with disk persistence. |
 | **Typography Antialiasing & Text Smoothing** | 🟢 Fully Working | Sharp, clean typography across all controls and select dropdowns with zero disjointed glyph collisions. |
+| **Hardened File Reliability & Audit Trail** | 🟢 Fully Working | Automated empty ghost folder pruning, atomic temp-file JSON writes, orphan PDF auto-cataloging, safe cross-device file moves, and immutable audit logging in `Archive/audit_log.jsonl`. |
+
 
 ---
 
