@@ -68,11 +68,81 @@ function parseDateComponents(dateString) {
   return { yyyy, mm };
 }
 
+function isPathInside(parentDir, targetPath) {
+  const rel = path.relative(parentDir, targetPath);
+  return rel && !rel.startsWith('..') && !path.isAbsolute(rel);
+}
+
+function safeMoveFile(src, dest) {
+  try {
+    fs.renameSync(src, dest);
+  } catch (err) {
+    if (err.code === 'EXDEV' || err.code === 'EPERM' || err.code === 'EBUSY') {
+      fs.copyFileSync(src, dest);
+      try { fs.unlinkSync(src); } catch {}
+    } else {
+      throw err;
+    }
+  }
+}
+
+function atomicWriteJson(filePath, data) {
+  const tmpPath = `${filePath}.${Date.now()}_${Math.random().toString(36).slice(2, 7)}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
+  try {
+    safeMoveFile(tmpPath, filePath);
+  } catch (err) {
+    fs.copyFileSync(tmpPath, filePath);
+    try { fs.unlinkSync(tmpPath); } catch {}
+  }
+}
+
+function writeAuditLog(archivePath, action, details) {
+  try {
+    fs.mkdirSync(archivePath, { recursive: true });
+    const logPath = path.join(archivePath, 'audit_log.jsonl');
+    const logEntry = JSON.stringify({
+      timestamp: new Date().toISOString(),
+      action,
+      ...details,
+    }) + '\n';
+    fs.appendFileSync(logPath, logEntry, 'utf-8');
+  } catch (err) {
+    console.warn('Could not write audit log:', err);
+  }
+}
+
+function pruneEmptyDirs(dir, isRoot = false) {
+  if (!fs.existsSync(dir)) return;
+  try {
+    const entries = fs.readdirSync(dir);
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry);
+      try {
+        if (fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory()) {
+          pruneEmptyDirs(fullPath, false);
+        }
+      } catch {}
+    }
+    if (!isRoot && fs.existsSync(dir)) {
+      const remaining = fs.readdirSync(dir);
+      if (remaining.length === 0) {
+        try {
+          fs.rmdirSync(dir);
+        } catch {}
+      }
+    }
+  } catch {}
+}
+
 function scanAndReconcileOutbox(outbox) {
   const catalog = [];
   if (!fs.existsSync(outbox)) {
     return catalog;
   }
+
+  // Prune any empty ghost directory shells so only folders with real documents appear on disk
+  pruneEmptyDirs(outbox, true);
 
   function walkDir(dir) {
     try {
@@ -113,6 +183,59 @@ function scanAndReconcileOutbox(outbox) {
           } catch (err) {
             console.warn('Error reading json sidecar:', fullPath, err);
           }
+        } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.pdf')) {
+          // Guard: If a PDF exists without a JSON sidecar, auto-create sidecar so it is NEVER missing!
+          const jsonPath = fullPath.replace(/\.pdf$/i, '.json');
+          if (!fs.existsSync(jsonPath)) {
+            try {
+              const rel = path.relative(outbox, fullPath);
+              const parts = rel.split(path.sep);
+              const guessedType = parts.length > 1 ? parts[0] : 'Other';
+              const guessedYear = parts.length > 2 ? parts[1] : new Date().getFullYear().toString();
+              const guessedMonth = parts.length > 3 ? parts[2] : '01';
+              const basename = path.basename(fullPath, path.extname(fullPath));
+              const stat = fs.statSync(fullPath);
+              const autoMeta = {
+                documentType: guessedType,
+                category: guessedType,
+                issuer: 'Imported Document',
+                personOrPatient: 'N/A',
+                statementDate: `${guessedYear}-${guessedMonth}-01`,
+                dueDate: 'N/A',
+                referenceNumber: 'N/A',
+                providerOrDoctor: 'N/A',
+                topicOrProcedure: basename.replace(/[-_]/g, ' '),
+                amountDue: 'N/A',
+                summary: `Discovered PDF in ${guessedType} vault folder.`,
+                suggestedFilename: path.basename(fullPath),
+                targetFolder: path.dirname(rel).replace(/\\/g, '/'),
+                tags: ['Imported', guessedType],
+              };
+              atomicWriteJson(jsonPath, autoMeta);
+
+              const relativeJson = path.relative(outbox, jsonPath);
+              const relativePdf = path.relative(outbox, fullPath);
+              catalog.push({
+                id: `doc_${basename}`,
+                filedAt: stat.mtime.toISOString(),
+                relativePdfPath: relativePdf,
+                relativeJsonPath: relativeJson,
+                documentType: guessedType,
+                statementDate: autoMeta.statementDate,
+                personOrPatient: 'N/A',
+                issuer: autoMeta.issuer,
+                providerOrDoctor: '',
+                topicOrProcedure: autoMeta.topicOrProcedure,
+                referenceNumber: '',
+                amountDue: 'N/A',
+                tags: autoMeta.tags,
+                metadata: autoMeta,
+                pdfExists: true,
+              });
+            } catch (err) {
+              console.warn('Could not auto-generate sidecar for PDF:', fullPath, err);
+            }
+          }
         }
       }
     } catch (e) {
@@ -129,10 +252,10 @@ function scanAndReconcileOutbox(outbox) {
     return dateB.localeCompare(dateA);
   });
 
-  // Reconcile and save master Outbox/index.json
+  // Reconcile and save master Outbox/index.json atomically
   try {
     const masterIndexPath = path.join(outbox, 'index.json');
-    fs.writeFileSync(masterIndexPath, JSON.stringify(catalog, null, 2), 'utf-8');
+    atomicWriteJson(masterIndexPath, catalog);
   } catch (err) {
     console.warn('Could not write reconciled Outbox/index.json:', err);
   }
@@ -275,7 +398,11 @@ export async function handleApiRequest(req, res) {
       if (fs.existsSync(filePath)) {
         fs.mkdirSync(trashDir, { recursive: true });
         const destPath = path.join(trashDir, `${Date.now()}_${safeName}`);
-        fs.renameSync(filePath, destPath);
+        safeMoveFile(filePath, destPath);
+        writeAuditLog(archive, 'INBOX_DISCARD', {
+          file: safeName,
+          discardedTo: destPath,
+        });
       }
       sendJson(200, { success: true, discarded: safeName });
     } catch (err) {
@@ -310,17 +437,19 @@ export async function handleApiRequest(req, res) {
         const safeFilename = path.basename(filename);
         const destPdfPath = path.join(destFolder, safeFilename);
 
-        // Strip data URL prefix if present and write PDF
+        // Strip data URL prefix if present and write PDF via atomic temp file
         const cleanBase64 = pdfBase64.replace(/^data:[a-zA-Z0-9/+-]+;base64,/, '');
         const pdfBuffer = Buffer.from(cleanBase64, 'base64');
-        fs.writeFileSync(destPdfPath, pdfBuffer);
+        const tmpPdfPath = `${destPdfPath}.${Date.now()}_${Math.random().toString(36).slice(2, 7)}.tmp`;
+        fs.writeFileSync(tmpPdfPath, pdfBuffer);
+        safeMoveFile(tmpPdfPath, destPdfPath);
 
-        // Save metadata sidecar JSON alongside the PDF
+        // Save metadata sidecar JSON alongside the PDF atomically
         let destJsonPath = null;
         if (metadata) {
           const jsonFilename = safeFilename.replace(/\.pdf$/i, '') + '.json';
           destJsonPath = path.join(destFolder, jsonFilename);
-          fs.writeFileSync(destJsonPath, JSON.stringify(metadata, null, 2), 'utf-8');
+          atomicWriteJson(destJsonPath, metadata);
 
           // Update master Outbox/index.json for fast search and cross-category sorting
           try {
@@ -358,7 +487,7 @@ export async function handleApiRequest(req, res) {
               metadata,
             });
 
-            fs.writeFileSync(masterIndexPath, JSON.stringify(indexData, null, 2), 'utf-8');
+            atomicWriteJson(masterIndexPath, indexData);
           } catch (indexErr) {
             console.warn('Could not update Outbox/index.json:', indexErr);
           }
@@ -380,14 +509,27 @@ export async function handleApiRequest(req, res) {
                 const finalTarget = fs.existsSync(targetProcessedPath)
                   ? path.join(processedDir, `${Date.now()}_${safeSrc}`)
                   : targetProcessedPath;
-                fs.renameSync(srcPath, finalTarget);
+                safeMoveFile(srcPath, finalTarget);
                 movedFiles.push(safeSrc);
+                writeAuditLog(archive, 'FILE_ARCHIVED', {
+                  originalInboxFile: safeSrc,
+                  archivedPath: finalTarget,
+                  filedToPdf: destPdfPath,
+                });
               } catch (moveErr) {
                 console.warn('Could not move file to Archive:', safeSrc, moveErr);
               }
             }
           }
         }
+
+        writeAuditLog(archive, 'DOCUMENT_FILED', {
+          pdf: destPdfPath,
+          json: destJsonPath,
+          docType: cleanType,
+          statementDate,
+          relativePdf: path.join(cleanType, yyyy, mm, safeFilename),
+        });
 
         sendJson(200, {
           success: true,
@@ -432,7 +574,7 @@ export async function handleApiRequest(req, res) {
         }
 
         const resolvedPath = path.resolve(outbox, relativeJsonPath);
-        if (!resolvedPath.startsWith(path.resolve(outbox))) {
+        if (!isPathInside(outbox, resolvedPath)) {
           return sendJson(403, { error: 'Access denied: outside outbox directory' });
         }
 
@@ -440,8 +582,13 @@ export async function handleApiRequest(req, res) {
           return sendJson(404, { error: 'Sidecar JSON file not found on disk' });
         }
 
-        // Write updated metadata back to physical JSON file
-        fs.writeFileSync(resolvedPath, JSON.stringify(updatedMetadata, null, 2), 'utf-8');
+        // Write updated metadata back to physical JSON file atomically
+        atomicWriteJson(resolvedPath, updatedMetadata);
+
+        writeAuditLog(archive, 'VAULT_ITEM_EDITED', {
+          jsonPath: relativeJsonPath,
+          updatedFields: Object.keys(updatedMetadata),
+        });
 
         // Reconcile catalog
         const catalog = scanAndReconcileOutbox(outbox);
@@ -468,21 +615,36 @@ export async function handleApiRequest(req, res) {
     fs.mkdirSync(trashDir, { recursive: true });
 
     try {
+      let movedPdf = null;
+      let movedJson = null;
+
       if (relPdf) {
         const resolvedPdf = path.resolve(outbox, relPdf);
-        if (resolvedPdf.startsWith(path.resolve(outbox)) && fs.existsSync(resolvedPdf)) {
+        if (isPathInside(outbox, resolvedPdf) && fs.existsSync(resolvedPdf)) {
           const destPdf = path.join(trashDir, `${Date.now()}_${path.basename(resolvedPdf)}`);
-          fs.renameSync(resolvedPdf, destPdf);
+          safeMoveFile(resolvedPdf, destPdf);
+          movedPdf = destPdf;
         }
       }
 
       if (relJson) {
         const resolvedJson = path.resolve(outbox, relJson);
-        if (resolvedJson.startsWith(path.resolve(outbox)) && fs.existsSync(resolvedJson)) {
+        if (isPathInside(outbox, resolvedJson) && fs.existsSync(resolvedJson)) {
           const destJson = path.join(trashDir, `${Date.now()}_${path.basename(resolvedJson)}`);
-          fs.renameSync(resolvedJson, destJson);
+          safeMoveFile(resolvedJson, destJson);
+          movedJson = destJson;
         }
       }
+
+      writeAuditLog(archive, 'VAULT_ITEM_DELETED', {
+        deletedRelPdf: relPdf,
+        deletedRelJson: relJson,
+        trashPdf: movedPdf,
+        trashJson: movedJson,
+      });
+
+      // Prune empty parent directories so no empty ghost shells remain
+      pruneEmptyDirs(outbox, true);
 
       // Reconcile outbox catalog to immediately refresh index.json
       const catalog = scanAndReconcileOutbox(outbox);
@@ -560,7 +722,7 @@ export async function handleApiRequest(req, res) {
 
     // Security: sanitize relative path and ensure it stays inside outbox
     const resolvedPath = path.resolve(outbox, relPath);
-    if (!resolvedPath.startsWith(path.resolve(outbox))) {
+    if (!isPathInside(outbox, resolvedPath)) {
       sendJson(403, { error: 'Access denied: outside outbox directory' });
       return true;
     }
