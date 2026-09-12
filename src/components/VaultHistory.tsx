@@ -8,7 +8,6 @@ import {
   FileText, 
   Download, 
   User, 
-  ScanLine,
   Edit3,
   Code,
   CheckCircle2,
@@ -19,6 +18,7 @@ import {
   Settings2,
   Plus,
   Check,
+  Inbox,
 } from 'lucide-react';
 import type { ScannedDocument, OutboxCatalogItem, AppSettings } from '../types';
 import { getOutboxCatalog, updateVaultEntry, deleteVaultEntry } from '../services/inboxService';
@@ -29,7 +29,8 @@ interface VaultHistoryProps {
   settings?: AppSettings;
   onUpdateSettings?: (settings: AppSettings) => void;
   onDeleteDoc: (id: string) => void;
-  onOpenScanner: () => void;
+  onOpenScanner?: () => void;
+  onGoToInbox?: () => void;
   onUpdateVaultCount?: (count: number) => void;
 }
 
@@ -62,6 +63,7 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
   onUpdateSettings,
   onDeleteDoc,
   onOpenScanner,
+  onGoToInbox,
   onUpdateVaultCount,
 }) => {
   const [catalogItems, setCatalogItems] = useState<OutboxCatalogItem[]>([]);
@@ -958,9 +960,13 @@ export const VaultHistory: React.FC<VaultHistoryProps> = ({
               Clear All Filters
             </button>
           ) : (
-            <button className="btn-primary" onClick={onOpenScanner} style={{ marginTop: '12px' }}>
-              <ScanLine size={15} />
-              <span>Capture New Document</span>
+            <button
+              className="btn-primary"
+              onClick={onGoToInbox || onOpenScanner}
+              style={{ marginTop: '12px' }}
+            >
+              <Inbox size={15} />
+              <span>Open Inbox & Triage</span>
             </button>
           )}
         </div>

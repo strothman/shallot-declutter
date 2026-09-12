@@ -53,6 +53,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - ✨ **Added**: **Smart Vault Discovery & Document Count Badges**: The category ribbon automatically detects non-empty categories present in the vault and displays real-time document count badges on each filter pill.
 - ✨ **Added**: **Deep Receipt Line-Item Search**: The Vault live search now matches not only document titles, issuers, and summaries, but also individual line-item groceries and items within itemized receipts (e.g. searching "Goldfish" or "Romaine" immediately locates the exact receipt).
 - ✨ **Added**: Persisted user preferences for `pinnedCategories` and `customCategories` in `AppSettings` via browser LocalStorage.
+- 🔄 **Removed**: **PC Webcam "Quick Scan / Upload" Tab**: Removed the computer camera viewfinder and header nav tab to streamline the desktop interface into two clean workspaces: **Inbox Triage** (for phone-scanned documents) and **Document Vault** (for master catalog history). Empty vault CTA now links directly to Inbox.
 
 ---
 

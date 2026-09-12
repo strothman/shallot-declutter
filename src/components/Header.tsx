@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Sparkles, HardDrive, Settings, FileText, Inbox, FolderArchive, Camera, Palette, Check } from 'lucide-react';
+import { Sparkles, HardDrive, Settings, FileText, Inbox, FolderArchive, Palette, Check } from 'lucide-react';
 import type { AppSettings, ThemeMode } from '../types';
 
 interface HeaderProps {
   settings: AppSettings;
   onOpenSettings: () => void;
-  activeTab: 'inbox' | 'scan' | 'vault' | 'settings';
-  onChangeTab: (tab: 'inbox' | 'scan' | 'vault' | 'settings') => void;
+  activeTab: 'inbox' | 'vault' | 'settings';
+  onChangeTab: (tab: 'inbox' | 'vault' | 'settings') => void;
   onChangeTheme: (theme: ThemeMode) => void;
   inboxCount?: number;
   vaultCount?: number;
@@ -127,14 +127,6 @@ export const Header: React.FC<HeaderProps> = ({
               {vaultCount}
             </span>
           )}
-        </button>
-
-        <button
-          className={`desktop-nav-tab ${activeTab === 'scan' ? 'active' : ''}`}
-          onClick={() => onChangeTab('scan')}
-        >
-          <Camera size={16} />
-          <span>Quick Scan / Upload</span>
         </button>
       </nav>
 

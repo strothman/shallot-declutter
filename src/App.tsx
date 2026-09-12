@@ -1,26 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { InboxTriage } from './components/InboxTriage';
-import { CameraCapture } from './components/CameraCapture';
 import { DocumentReviewSheet } from './components/DocumentReviewSheet';
 import { VaultHistory } from './components/VaultHistory';
 import { SettingsModal } from './components/SettingsModal';
 import type { AppSettings, ScannedDocument } from './types';
 import { loadSettings, saveSettings, loadVault, saveVaultItem, deleteVaultItem } from './services/storageService';
 import { getInboxStatus } from './services/inboxService';
-import { analyzeDocumentWithGemini } from './services/geminiService';
 import { createPdfFromPages } from './services/pdfService';
 import { uploadPdfToDrive } from './services/driveService';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'inbox' | 'scan' | 'vault' | 'settings'>('inbox');
+  const [activeTab, setActiveTab] = useState<'inbox' | 'vault' | 'settings'>('inbox');
   const [inboxCount, setInboxCount] = useState<number>(0);
   const [vaultCount, setVaultCount] = useState<number>(0);
   const [settings, setSettings] = useState<AppSettings>(loadSettings);
   const [vault, setVault] = useState<ScannedDocument[]>(loadVault);
   const [activeReviewDoc, setActiveReviewDoc] = useState<ScannedDocument | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isFiling, setIsFiling] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -50,44 +47,6 @@ export const App: React.FC = () => {
     setTimeout(() => {
       setToast(null);
     }, 4000);
-  };
-
-  const handleCaptureComplete = async (pages: string[]) => {
-    if (pages.length === 0) return;
-    setIsAnalyzing(true);
-
-    try {
-      // 1. Generate clean multi-page PDF in parallel
-      const pdfBlob = await createPdfFromPages(pages);
-
-      // 2. Perform multimodal analysis with Gemini
-      const metadata = await analyzeDocumentWithGemini(
-        pages[0],
-        settings.geminiApiKey,
-        settings.geminiModel,
-        settings.rootDriveFolder
-      );
-
-      const newDoc: ScannedDocument = {
-        id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        createdAt: new Date().toISOString(),
-        pages,
-        pdfBlob,
-        metadata,
-        status: 'ready',
-      };
-
-      // 3. If Auto-File mode is enabled, immediately upload
-      if (settings.autoFile) {
-        await executeFiling(newDoc);
-      } else {
-        setActiveReviewDoc(newDoc);
-      }
-    } catch (err: any) {
-      showToast(err?.message || 'Error processing document', 'error');
-    } finally {
-      setIsAnalyzing(false);
-    }
   };
 
   const executeFiling = async (docToUpload: ScannedDocument) => {
@@ -206,24 +165,13 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'scan' && (
-          <CameraCapture
-            onCaptureComplete={handleCaptureComplete}
-            enhanceContrast={settings.enhanceContrast}
-            onToggleEnhanceContrast={() =>
-              setSettings((prev) => ({ ...prev, enhanceContrast: !prev.enhanceContrast }))
-            }
-            isAnalyzing={isAnalyzing}
-          />
-        )}
-
         {activeTab === 'vault' && (
           <VaultHistory
             documents={vault}
             settings={settings}
             onUpdateSettings={handleUpdateSettings}
             onDeleteDoc={handleDeleteDoc}
-            onOpenScanner={() => setActiveTab('scan')}
+            onGoToInbox={() => setActiveTab('inbox')}
             onUpdateVaultCount={(count) => setVaultCount(count)}
           />
         )}

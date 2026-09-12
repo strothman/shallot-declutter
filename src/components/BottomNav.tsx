@@ -1,9 +1,9 @@
 import React from 'react';
-import { Inbox, Camera, FolderArchive, Settings } from 'lucide-react';
+import { Inbox, FolderArchive, Settings } from 'lucide-react';
 
 interface BottomNavProps {
-  activeTab: 'inbox' | 'scan' | 'vault' | 'settings';
-  onChangeTab: (tab: 'inbox' | 'scan' | 'vault' | 'settings') => void;
+  activeTab: 'inbox' | 'vault' | 'settings';
+  onChangeTab: (tab: 'inbox' | 'vault' | 'settings') => void;
   vaultCount?: number;
   inboxCount?: number;
 }
@@ -42,14 +42,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             {inboxCount}
           </span>
         )}
-      </button>
-
-      <button
-        className={`nav-item ${activeTab === 'scan' ? 'active' : ''}`}
-        onClick={() => onChangeTab('scan')}
-      >
-        <Camera size={22} />
-        <span>Scan</span>
       </button>
 
       <button
